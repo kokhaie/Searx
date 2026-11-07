@@ -5,6 +5,7 @@ import { fetchSearxSearch } from '../utils/searx'
 import { initBlocklists, filterResults } from '../utils/contentGuard'
 
 const TIME_RANGES = new Set<TimeRange>(['', 'day', 'week', 'month', 'year'])
+const MAX_RESULTS = 10
 
 function parseTimeRange(value: unknown): TimeRange {
   const range = String(value ?? '').toLowerCase() as TimeRange
@@ -43,8 +44,9 @@ export default defineEventHandler(async (event) => {
 
     const response = buildSearchResponse(payload, query, Math.max(1, Date.now() - started))
     const countBeforeGuard = response.results.length
-    response.results = filterResults(response.results)
-    response.filteredCount += countBeforeGuard - response.results.length
+    const cleanResults = filterResults(response.results)
+    response.filteredCount += countBeforeGuard - cleanResults.length
+    response.results = cleanResults.slice(0, MAX_RESULTS)
 
     return response
   } catch (error) {
