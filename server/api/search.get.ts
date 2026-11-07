@@ -38,16 +38,15 @@ export default defineEventHandler(async (event) => {
       clientIp,
     })
 
-    // Type guard: ensure payload has the expected shape
-    const searchPayload = payload as { results: unknown[]; [key: string]: unknown }
-
-    // --- Social media guard: init blocklist (reads cache on subsequent starts) ---
+    // --- Social media guard: ensure blocklist is loaded ---
     await initBlocklists()
 
-    // Filter out results from blocked social domains
-    const cleanResults = filterResults(searchPayload.results as Array<{ url: string }>)
+    const response = buildSearchResponse(payload, query, Math.max(1, Date.now() - started))
+    const countBeforeGuard = response.results.length
+    response.results = filterResults(response.results)
+    response.filteredCount += countBeforeGuard - response.results.length
 
-    return buildSearchResponse(cleanResults, query, Math.max(1, Date.now() - started))
+    return response
   } catch (error) {
     const message =
       error instanceof Error ? error.message : 'The search backend is unavailable.'

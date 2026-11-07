@@ -10,76 +10,94 @@ export const SOCIAL_BLOCKLIST_URL =
   'https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/social.txt';
 
 // ============================================================
-// DOMAIN PARSING
+// DOMAIN PARSING & STORAGE
 // ============================================================
-let blockedDomains = new Set<string>(); // O(1) lookups
-const cacheFile = '/var/searxng/content-guard-social.txt';
+const blockedDomains = new Set<string>(); // O(1) lookups
+let isInitialized = false;
+let initPromise: Promise<void> | null = null;
 
 function parseSocialListLine(line: string): string | null {
-  const trimmed = line.trim();
+  let trimmed = line.trim();
   if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('!')) return null;
 
-  // Hosts format: "0.0.0.0 domain.com" or "127.0.0.1 domain.com"
-  const hostsMatch = trimmed.match(/^(0\.0\.0\.0|127\.0\.0\.1)\s+(.+)$/);
-  let domain: string | null = null;
-  if (hostsMatch && hostsMatch.length >= 3) {
-    const afterPrefix = hostsMatch[2];
-    if (afterPrefix) {
-      domain = afterPrefix.split('/')[0].split('?')[0].trim();
-    }
+  // Strip AdBlock syntax: ||example.com^
+  if (trimmed.startsWith('||')) {
+    trimmed = trimmed.slice(2);
   }
-  if (domain && domain.includes('.')) return domain.toLowerCase();
+  if (trimmed.endsWith('^')) {
+    trimmed = trimmed.slice(0, -1);
+  }
 
-  // Plain domain — extract hostname
-  try {
-    let d = trimmed;
-    if (d.startsWith('http://') || d.startsWith('https://')) {
-      d = d.replace(/^https?:\/\//, '');
-    }
-    d = d.split('/')[0].split('?')[0].trim();
-    if (d && !/^\d+\.\d+\.\d+\.\d+$/.test(d) && d.includes('.')) {
-      domain = d;
-    }
-  } catch {
-    // ignored
+  // Hosts format: "0.0.0.0 domain.com" or "127.0.0.1 domain.com"
+  const hostsMatch = trimmed.match(/^(?:0\.0\.0\.0|127\.0\.0\.1)\s+(\S+)/);
+  if (hostsMatch?.[1]) {
+    trimmed = hostsMatch[1];
   }
-  if (domain && domain.includes('.')) return domain.toLowerCase();
-  return null;
+
+  // Strip protocol if present
+  trimmed = trimmed.replace(/^https?:\/\//, '');
+
+  // Extract hostname (strip paths, ports, query params)
+  const domainPart = trimmed.split('/')[0]?.split(':')[0]?.split('?')[0]?.trim();
+  if (!domainPart || /^\d+\.\d+\.\d+\.\d+$/.test(domainPart) || !domainPart.includes('.')) {
+    return null;
+  }
+
+  return domainPart.toLowerCase().replace(/^www\./, '');
 }
 
 // ============================================================
 // INIT: download social list + compile to RAM
-// Uses global fetch. On first run downloads; subsequent runs use RAM.
+// Uses global fetch. Caches in RAM once loaded.
 // ============================================================
 export async function initBlocklists(): Promise<void> {
-  let fetchedCount = 0;
-  try {
-    const res = await fetch(SOCIAL_BLOCKLIST_URL, {
-      headers: { 'Cache-Control': 'max-age: 86400' },
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const text = await res.text();
-    const lines = text.split('\n');
-    for (const line of lines) {
-      const domain = parseSocialListLine(line);
-      if (domain) {
-        blockedDomains.add(domain);
-        fetchedCount++;
+  if (isInitialized && blockedDomains.size > 0) return;
+  if (initPromise) return initPromise;
+
+  initPromise = (async () => {
+    try {
+      const res = await fetch(SOCIAL_BLOCKLIST_URL, {
+        headers: { 'Cache-Control': 'max-age: 86400' },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const text = await res.text();
+      const lines = text.split('\n');
+      for (const line of lines) {
+        const domain = parseSocialListLine(line);
+        if (domain) {
+          blockedDomains.add(domain);
+        }
       }
+      isInitialized = true;
+      console.log(`[Guard] Loaded ${blockedDomains.size} social domains into memory.`);
+    } catch (e) {
+      console.warn('[Guard] Error fetching social blocklist:', e);
+    } finally {
+      initPromise = null;
     }
-    console.log('[Guard] Fetched ' + fetchedCount + ' social domains from hagezi list.');
-  } catch (e) {
-    console.warn('[Guard] Error fetching social blocklist:', e);
-  }
+  })();
+
+  return initPromise;
 }
 
 // ============================================================
-// IS BLOCKED: O(1) check if a URL's hostname is a social domain
+// IS BLOCKED: check if a URL's hostname or any parent domain is blocked
 // ============================================================
 export function isBlocked(url: string): boolean {
   try {
-    const hostname = new URL(url).hostname.toLowerCase().replace(/^www\./, '');
-    return blockedDomains.has(hostname);
+    let hostname = new URL(url).hostname.toLowerCase().replace(/^www\./, '');
+    if (!hostname) return false;
+
+    // Check exact hostname and parent domain suffixes (e.g. m.facebook.com -> facebook.com)
+    while (hostname.includes('.')) {
+      if (blockedDomains.has(hostname)) {
+        return true;
+      }
+      const nextDot = hostname.indexOf('.');
+      if (nextDot === -1) break;
+      hostname = hostname.slice(nextDot + 1);
+    }
+    return false;
   } catch {
     return false;
   }
@@ -88,8 +106,6 @@ export function isBlocked(url: string): boolean {
 // ============================================================
 // FILTER RESULTS: remove results from blocked social domains
 // ============================================================
-export function filterResults(results): any {
-  return results.filter(function (r): any {
-    return !isBlocked(r.url);
-  });
+export function filterResults<T extends { url: string }>(results: T[]): T[] {
+  return results.filter((r) => !isBlocked(r.url));
 }
