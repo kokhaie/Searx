@@ -9,7 +9,7 @@ WORKDIR /app
 FROM base AS deps
 # Install dependencies in a separate layer for better caching.
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile --ignore-scripts=false
 
 FROM base AS build
 COPY --from=deps /app/node_modules ./node_modules
