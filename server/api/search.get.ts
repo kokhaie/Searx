@@ -2,6 +2,7 @@ import { createError, defineEventHandler, getQuery } from 'h3'
 import type { TimeRange } from '../../shared/types/search'
 import { buildSearchResponse } from '../../shared/utils/search'
 import { fetchSearxSearch } from '../utils/searx'
+import { initBlocklists, filterResults } from '../utils/contentGuard'
 
 const TIME_RANGES = new Set<TimeRange>(['', 'day', 'week', 'month', 'year'])
 
@@ -37,7 +38,16 @@ export default defineEventHandler(async (event) => {
       clientIp,
     })
 
-    return buildSearchResponse(payload, query, Math.max(1, Date.now() - started))
+    // Type guard: ensure payload has the expected shape
+    const searchPayload = payload as { results: unknown[]; [key: string]: unknown }
+
+    // --- Social media guard: init blocklist (reads cache on subsequent starts) ---
+    await initBlocklists()
+
+    // Filter out results from blocked social domains
+    const cleanResults = filterResults(searchPayload.results as Array<{ url: string }>)
+
+    return buildSearchResponse(cleanResults, query, Math.max(1, Date.now() - started))
   } catch (error) {
     const message =
       error instanceof Error ? error.message : 'The search backend is unavailable.'

@@ -1,6 +1,7 @@
 import { defineEventHandler, getQuery } from 'h3'
 import { normalizeSuggestions } from '../../shared/utils/search'
 import { fetchSearxSearch, fetchSearxSuggestions } from '../utils/searx'
+import { initBlocklists } from '../utils/contentGuard'
 
 interface CacheEntry {
   at: number
@@ -40,6 +41,9 @@ export default defineEventHandler(async (event) => {
   if (cached && Date.now() - cached.at < CACHE_TTL) {
     return { suggestions: cached.suggestions }
   }
+
+  // --- Social media guard: populate blocklist cache ---
+  await initBlocklists()
 
   let suggestions: string[] = []
 
