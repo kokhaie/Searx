@@ -74,15 +74,18 @@ async function getLabelEmbeddings() {
 
   const ext = await loadExtractor()
 
-  const [unsafeResult, safeResult] = await Promise.all([
-    ext(UNSAFE_LABELS, { pooling: 'mean', normalize: true }),
-    ext(SAFE_LABELS, { pooling: 'mean', normalize: true }),
-  ])
+  // Process each label individually to get individual embedding vectors
+  const unsafeResults = await Promise.all(
+    UNSAFE_LABELS.map((label) => ext(label, { pooling: 'mean', normalize: true })),
+  )
+  const safeResults = await Promise.all(
+    SAFE_LABELS.map((label) => ext(label, { pooling: 'mean', normalize: true })),
+  )
 
   const toArray = (t: any) => (t.tolist ? t.tolist() : Array.from(t))
 
-  unsafeEmbeddings = unsafeResult.map(toArray)
-  safeEmbeddings = safeResult.map(toArray)
+  unsafeEmbeddings = unsafeResults.map(toArray)
+  safeEmbeddings = safeResults.map(toArray)
 
   return { unsafeEmbeddings, safeEmbeddings }
 }
@@ -152,14 +155,14 @@ export async function classifyTextNsfw(text: string, url?: string): Promise<Nsfw
 
   const ext = await loadExtractor()
   const started = Date.now()
-  const result = await ext([text], {
+  const result = await ext(text, {
     pooling: 'mean',
     normalize: true,
   })
   const inferenceMs = Date.now() - started
 
   const toArray = (t: any) => (t.tolist ? t.tolist() : Array.from(t))
-  const emb = toArray(result[0])
+  const emb = toArray(result)
 
   const { unsafeEmbeddings, safeEmbeddings } = await getLabelEmbeddings()
 
