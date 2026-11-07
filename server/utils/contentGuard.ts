@@ -4,10 +4,39 @@
 // ------------------------------------------
 
 // ============================================================
-// CONFIG: hagezi social blocklist via jsDelivr CDN
+// CONFIG: hagezi blocklists via jsDelivr CDN
 // ============================================================
 export const SOCIAL_BLOCKLIST_URL =
   'https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/social.txt';
+
+export const NSFW_BLOCKLIST_URL =
+  'https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/nsfw.txt';
+
+// Fallback adult/NSFW domains if the remote list fails to load
+const FALLBACK_NSFW_DOMAINS = [
+  'xnxx.com',
+  'xhamster.com',
+  'pornhub.com',
+  'xvideos.com',
+  'redtube.com',
+  'youporn.com',
+  'tube8.com',
+  'spankbang.com',
+  'chaturbate.com',
+  'onlyfans.com',
+  'manyvids.com',
+  'literotica.com',
+  'naughtyamerica.com',
+  'realitykings.com',
+  'brazzers.com',
+  'bangbros.com',
+  'twistys.com',
+  'digitalplayground.com',
+  '21sextury.com',
+  '21naturals.com',
+  'metart.com',
+  'femjoy.com',
+] as const;
 
 // ============================================================
 // DOMAIN PARSING & STORAGE
@@ -47,7 +76,7 @@ function parseSocialListLine(line: string): string | null {
 }
 
 // ============================================================
-// INIT: download social list + compile to RAM
+// INIT: download social + NSFW lists + compile to RAM
 // Uses global fetch. Caches in RAM once loaded.
 // ============================================================
 export async function initBlocklists(): Promise<void> {
@@ -55,6 +84,9 @@ export async function initBlocklists(): Promise<void> {
   if (initPromise) return initPromise;
 
   initPromise = (async () => {
+    let totalLoaded = 0;
+
+    // Load social blocklist
     try {
       const res = await fetch(SOCIAL_BLOCKLIST_URL, {
         headers: { 'Cache-Control': 'max-age: 86400' },
@@ -66,15 +98,42 @@ export async function initBlocklists(): Promise<void> {
         const domain = parseSocialListLine(line);
         if (domain) {
           blockedDomains.add(domain);
+          totalLoaded++;
         }
       }
-      isInitialized = true;
-      console.log(`[Guard] Loaded ${blockedDomains.size} social domains into memory.`);
+      console.log(`[Guard] Loaded social domains into memory.`);
     } catch (e) {
       console.warn('[Guard] Error fetching social blocklist:', e);
-    } finally {
-      initPromise = null;
     }
+
+    // Load NSFW blocklist
+    try {
+      const res = await fetch(NSFW_BLOCKLIST_URL, {
+        headers: { 'Cache-Control': 'max-age: 86400' },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const text = await res.text();
+      const lines = text.split('\n');
+      for (const line of lines) {
+        const domain = parseSocialListLine(line);
+        if (domain) {
+          blockedDomains.add(domain);
+          totalLoaded++;
+        }
+      }
+      console.log(`[Guard] Loaded NSFW domains into memory.`);
+    } catch (e) {
+      console.warn('[Guard] Error fetching NSFW blocklist:', e);
+      // Add fallback domains if remote list fails
+      for (const domain of FALLBACK_NSFW_DOMAINS) {
+        blockedDomains.add(domain);
+        totalLoaded++;
+      }
+      console.log(`[Guard] Loaded ${FALLBACK_NSFW_DOMAINS.length} fallback NSFW domains.`);
+    }
+
+    isInitialized = true;
+    console.log(`[Guard] Loaded ${blockedDomains.size} total blocked domains into memory.`);
   })();
 
   return initPromise;
