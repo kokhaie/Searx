@@ -1,22 +1,8 @@
-# SearXNG configuration for the private instance used by the frontend app.
-# Docs: https://docs.searxng.org/admin/settings/
-
-use_default_settings:
-  engines:
-    # Only Google and Bing (removed duckduckgo: its backend ignores the
-    # safesearch setting and leaked unsafe results; brave crashes against
-    # bot-blocking pages from datacenter IPs).
-    keep_only:
-      - google
-      - bing
-
 search:
   safe_search: 2          # 0=off 1=moderate 2=strict
   autocomplete: "google"  # powers /autocompleter -> /api/suggest
   default_lang: "en"
   formats:
-    # `html` must stay first or the web UI returns "this format is not
-    # allowed"; `json` is required by the app's server proxy.
     - html
     - json
 
@@ -29,45 +15,3 @@ server:
   limiter: false          # private instance — no rate limiter
   public_instance: false
   cors_enabled: false
-
-ui:
-  default_theme: simple
-  theme_args:
-    simple_style: light
-
-outgoing:
-  # Datacenter IPs get throttled by upstreams; 3s caused engine timeouts.
-  request_timeout: 6.0
-  useragent_suffix: ""
-  networks:
-    # HTTP/3 client: Bing serves the classic, parseable results page to
-    # Chrome fingerprints over HTTP/3, while over HTTP/2 (the default
-    # transport) it serves a JavaScript-only page that parses to zero
-    # results. Verified empirically against this server's IP.
-    h3-client:
-      enable_http3: true
-      enable_http2: true
-
-preferences:
-  lock:
-    # Safesearch level cannot be changed by clients — but the app's server
-    # proxy always sends safesearch=2 anyway. Categories stay unlockable so
-    # engine/category selection (bangs, engines= param) still works.
-    - safesearch
-
-categories_as_tabs:
-  general:
-  news:
-  it:
-  science:
-
-# Google reports "access denied" from this server's datacenter IP (bot
-# blocking, independent of settings) — Bing returns results and STRICT
-# safe search (adlt=strict) is passed via the app's safesearch=2 param.
-engines:
-  - name: bing
-    network: h3-client
-    disabled: false
-  - name: google
-    network: h3-client
-    disabled: false
