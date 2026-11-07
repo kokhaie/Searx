@@ -1,0 +1,164 @@
+@import 'tailwindcss';
+
+@custom-variant light (&:where(.light, .light *));
+
+/* --------------------------------------------------------------------------
+   Monochrome tokens — zinc on black, stone on paper.
+   -------------------------------------------------------------------------- */
+:root,
+html.dark {
+  color-scheme: dark;
+
+  --canvas: #09090b; /* zinc-950 */
+  --panel: #18181b; /* zinc-900 */
+  --elevated: #27272a; /* zinc-800 */
+  --line: #27272a; /* zinc-800 */
+  --line-soft: #18181b; /* zinc-900 */
+  --fg: #f4f4f5; /* zinc-100 */
+  --fg-strong: #fafafa; /* zinc-50 */
+  --muted: #a1a1aa; /* zinc-400 */
+  --faint: #71717a; /* zinc-500 */
+  --dim: #52525b; /* zinc-600 */
+  --active: rgb(24 24 27 / 0.4);
+  --active-border: #e4e4e7; /* zinc-200 */
+  --selection: #27272a;
+}
+
+html.light {
+  color-scheme: light;
+
+  --canvas: #fafaf9; /* stone-50 */
+  --panel: #ffffff;
+  --elevated: #e7e5e4; /* stone-200 */
+  --line: #e7e5e4; /* stone-200 */
+  --line-soft: #f5f5f4; /* stone-100 */
+  --fg: #1c1917; /* stone-900 */
+  --fg-strong: #0c0a09; /* stone-950 */
+  --muted: #57534e; /* stone-600 */
+  --faint: #78716c; /* stone-500 */
+  --dim: #a8a29e; /* stone-400 */
+  --active: rgb(231 229 228 / 0.45);
+  --active-border: #44403c; /* stone-700 */
+  --selection: #e7e5e4;
+}
+
+@theme inline {
+  --font-sans: 'Geist Variable', ui-sans-serif, system-ui, -apple-system,
+    BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'Geist Mono Variable', ui-monospace, SFMono-Regular, Menlo,
+    Consolas, monospace;
+
+  --color-canvas: var(--canvas);
+  --color-panel: var(--panel);
+  --color-elevated: var(--elevated);
+  --color-line: var(--line);
+  --color-line-soft: var(--line-soft);
+  --color-fg: var(--fg);
+  --color-fg-strong: var(--fg-strong);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-dim: var(--dim);
+  --color-active: var(--active);
+  --color-active-border: var(--active-border);
+  --color-selection: var(--selection);
+}
+
+@layer base {
+  html {
+    background-color: var(--canvas);
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    background-color: var(--canvas);
+    color: var(--fg);
+    font-family: var(--font-sans);
+    transition:
+      background-color 160ms ease,
+      color 160ms ease;
+  }
+
+  ::selection {
+    background-color: var(--selection);
+    color: var(--fg-strong);
+  }
+
+  :focus-visible {
+    outline: 1px solid var(--faint);
+    outline-offset: 2px;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--line) transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background-color: var(--line);
+    border: 3px solid var(--canvas);
+    border-radius: 999px;
+  }
+}
+
+/* Theme label is rendered for both themes on the server and resolved by CSS,
+   so a stored light theme never causes a hydration mismatch. */
+.theme-label-light {
+  display: none;
+}
+
+html.light .theme-label-dark {
+  display: none;
+}
+
+html.light .theme-label-light {
+  display: inline;
+}
+
+@keyframes row-in {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes drop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.row-in {
+  animation: row-in 180ms ease-out both;
+}
+
+.drop-in {
+  animation: drop-in 120ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -1,0 +1,71 @@
+# Single-file stack — `docker compose up --build` is all you need:
+# no .env, no SearXNG settings to edit, no rate limiter.
+#
+# Topology:
+#   browser ──> app (Nuxt, the ONLY published port, :3000)
+#                 └── server proxy ──> core (SearXNG, internal network only)
+#
+# The browser never contacts SearXNG (all search goes through the app's
+# /api/* proxy), so the SearXNG container needs no host port, no CORS and
+# no rate limiter. `searxng/core-config/settings.yml` is baked into the
+# repo (JSON format on, limiter off) so nothing has to be configured.
+
+name: search-engine
+
+services:
+  core:
+    container_name: search-searxng-core
+    image: docker.io/searxng/searxng:${SEARXNG_VERSION:-latest}
+    restart: always
+    volumes:
+      - ./searxng/core-config/:/etc/searxng/:Z
+      - core-data:/var/cache/searxng/
+    environment:
+      # Internal-only instance; base URL mostly affects links/cookies.
+      - SEARXNG_BASE_URL=http://localhost:8080/
+      # Optional: set a real secret in a .env file (openssl rand -hex 32).
+      # The fallback lets `docker compose up` run with zero preparation.
+      - SEARXNG_SECRET=${SEARXNG_SECRET:-please-change-this-dev-secret}
+    # Intentionally no `ports:` — SearXNG stays private.
+    ports:
+      - "8080:8080"
+    networks:
+      - searxnet
+
+  valkey:
+    container_name: search-searxng-valkey
+    image: docker.io/valkey/valkey:9-alpine
+    command: valkey-server --save 300 1 --save 60 1000 --loglevel warning
+    restart: always
+    volumes:
+      - valkey-data:/data/
+    networks:
+      - searxnet
+
+  app:
+    container_name: search-app
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    depends_on:
+      - core
+    environment:
+      # Server-side proxy target on the internal network — the only link
+      # between the frontend and SearXNG.
+      NUXT_SEARX_URL: http://core:8080
+      HOST: 0.0.0.0
+      PORT: 3000
+      NODE_ENV: production
+    ports:
+      # The only published port in the stack.
+      - ${APP_PORT:-3000}:3000
+    networks:
+      - searxnet
+
+volumes:
+  core-data:
+  valkey-data:
+
+networks:
+  searxnet:

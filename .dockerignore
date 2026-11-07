@@ -1,0 +1,39 @@
+# Dependencies/build artifacts
+node_modules
+.nuxt
+.output
+.data
+.nitro
+.cache
+dist
+
+# VCS / IDE
+.git
+.gitignore
+.vscode
+.idea
+.fleet
+.DS_Store
+
+# Local env & secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Docker local files (not needed in build context)
+Dockerfile
+.dockerignore
+docker-compose*.yml
+compose*.yml
+searxng
+
+# Misc
+README.md
+*.md
+!package.json

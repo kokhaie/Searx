@@ -1,0 +1,13 @@
+# Present as a stub so SearXNG doesn't warn about a missing config file at
+# startup. The limiter is disabled server-side (limiter: false in
+# settings.yml) for this private instance; this file only matters if you
+# ever enable the limiter.
+
+[botdetection.ip_lists]
+pass_ip = [
+  '127.0.0.0/8',
+  '::1',
+  '10.0.0.0/8',
+  '172.16.0.0/12',
+  '192.168.0.0/16',
+]
