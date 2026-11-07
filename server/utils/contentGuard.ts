@@ -12,32 +12,6 @@ export const SOCIAL_BLOCKLIST_URL =
 export const NSFW_BLOCKLIST_URL =
   'https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/nsfw.txt';
 
-// Fallback adult/NSFW domains if the remote list fails to load
-const FALLBACK_NSFW_DOMAINS = [
-  'xnxx.com',
-  'xhamster.com',
-  'pornhub.com',
-  'xvideos.com',
-  'redtube.com',
-  'youporn.com',
-  'tube8.com',
-  'spankbang.com',
-  'chaturbate.com',
-  'onlyfans.com',
-  'manyvids.com',
-  'literotica.com',
-  'naughtyamerica.com',
-  'realitykings.com',
-  'brazzers.com',
-  'bangbros.com',
-  'twistys.com',
-  'digitalplayground.com',
-  '21sextury.com',
-  '21naturals.com',
-  'metart.com',
-  'femjoy.com',
-] as const;
-
 // ============================================================
 // DOMAIN PARSING & STORAGE
 // ============================================================
@@ -124,12 +98,6 @@ export async function initBlocklists(): Promise<void> {
       console.log(`[Guard] Loaded NSFW domains into memory.`);
     } catch (e) {
       console.warn('[Guard] Error fetching NSFW blocklist:', e);
-      // Add fallback domains if remote list fails
-      for (const domain of FALLBACK_NSFW_DOMAINS) {
-        blockedDomains.add(domain);
-        totalLoaded++;
-      }
-      console.log(`[Guard] Loaded ${FALLBACK_NSFW_DOMAINS.length} fallback NSFW domains.`);
     }
 
     isInitialized = true;
