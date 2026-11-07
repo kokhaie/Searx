@@ -2,7 +2,12 @@ import { createError, defineEventHandler, getQuery } from 'h3'
 import type { TimeRange } from '../../shared/types/search'
 import { buildSearchResponse } from '../../shared/utils/search'
 import { fetchSearxSearch } from '../utils/searx'
-import { initBlocklists, filterResults, filterAdultResults } from '../utils/contentGuard'
+import {
+  initBlocklists,
+  filterResults,
+  filterAdultResults,
+} from '../utils/contentGuard'
+import { classifyResultNsfw } from '../utils/nsfwClassifier'
 
 const TIME_RANGES = new Set<TimeRange>(['', 'day', 'week', 'month', 'year'])
 const MAX_RESULTS = 5
@@ -44,10 +49,19 @@ export default defineEventHandler(async (event) => {
 
     const response = buildSearchResponse(payload, query, Math.max(1, Date.now() - started))
     const countBeforeGuard = response.results.length
+
+    // Step 1: Block social media domains
     const cleanResults = filterResults(response.results)
+
+    // Step 2: Block likely adult content via heuristic patterns
     const afterAdultFilter = filterAdultResults(cleanResults)
-    response.filteredCount += countBeforeGuard - afterAdultFilter.length
-    response.results = afterAdultFilter.slice(0, MAX_RESULTS)
+
+    // Step 3: Block NSFW/adult content via AI zero-shot classification
+    // Runs BEFORE result limit slicing so NSFW results never reach the browser
+    const nsfwFiltered = await filterNsfwResults(afterAdultFilter)
+
+    response.filteredCount += countBeforeGuard - nsfwFiltered.length
+    response.results = nsfwFiltered.slice(0, MAX_RESULTS)
 
     return response
   } catch (error) {
@@ -64,3 +78,32 @@ export default defineEventHandler(async (event) => {
     })
   }
 })
+
+/**
+ * Filter search results using the NSFW zero-shot AI classifier.
+ * Classifies each result's title + snippet and removes those classified as
+ * "sexual or revealing adult content" above the threshold.
+ * Fails open (returns original results) if the classifier fails to load.
+ */
+async function filterNsfwResults(results: Array<{ title: string; snippet?: string }>) {
+  if (results.length === 0) return results
+
+  try {
+    // Classify all results in parallel
+    const classifications = await Promise.all(
+      results.map((r) => classifyResultNsfw(r)),
+    )
+
+    const filtered = results.filter((_, i) => !classifications[i]?.isLikelyNsfw)
+
+    console.log(
+      `[NSFW] Filtered ${results.length - filtered.length} of ${results.length} results as NSFW`,
+    )
+
+    return filtered
+  } catch (err) {
+    // Classifier failed (model download, network, etc.) — fail open
+    console.warn('[NSFW] Classifier failed, returning unfiltered results:', err)
+    return results
+  }
+}
