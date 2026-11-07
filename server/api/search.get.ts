@@ -5,7 +5,6 @@ import { fetchSearxSearch } from '../utils/searx'
 import {
   initBlocklists,
   filterResults,
-  filterAdultResults,
 } from '../utils/contentGuard'
 import { classifyResultNsfw } from '../utils/nsfwClassifier'
 
@@ -53,12 +52,9 @@ export default defineEventHandler(async (event) => {
     // Step 1: Block social media domains
     const cleanResults = filterResults(response.results)
 
-    // Step 2: Block likely adult content via heuristic patterns
-    const afterAdultFilter = filterAdultResults(cleanResults)
-
-    // Step 3: Block NSFW/adult content via AI zero-shot classification
+    // Step 2: Block NSFW/adult content via AI zero-shot classification
     // Runs BEFORE result limit slicing so NSFW results never reach the browser
-    const nsfwFiltered = await filterNsfwResults(afterAdultFilter)
+    const nsfwFiltered = await filterNsfwResults(cleanResults)
 
     response.filteredCount += countBeforeGuard - nsfwFiltered.length
     response.results = nsfwFiltered.slice(0, MAX_RESULTS)
