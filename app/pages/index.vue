@@ -10,6 +10,11 @@ const TIME_RANGES = [
   { label: '1Y', value: 'year' },
 ] as const
 
+const RESULTS_LIMITS = [3, 5, 10] as const
+type ResultsLimit = (typeof RESULTS_LIMITS)[number]
+
+const DEFAULT_RESULTS_LIMIT: ResultsLimit = 5
+
 const ROUTE_RANGE: Record<Exclude<TimeRange, ''>, string> = {
   day: '24h',
   week: '7d',
@@ -36,10 +41,16 @@ const { toggleTheme } = useTheme()
 
 const initialQuery = queryParam(route.query.q) || ''
 const initialRange = RANGE_FROM_ROUTE[queryParam(route.query.range)] ?? ''
+const initialMaxResults = queryParam(route.query.maxResults)
 
 const query = ref(initialQuery)
 const timeRange = ref<TimeRange>(initialRange)
 const submittedQuery = ref('')
+const maxResults = ref<ResultsLimit>(
+  initialMaxResults && RESULTS_LIMITS.includes(Number(initialMaxResults))
+    ? Number(initialMaxResults)
+    : DEFAULT_RESULTS_LIMIT,
+)
 
 const inputEl = ref<HTMLInputElement | null>(null)
 const inputFocused = ref(false)
@@ -155,6 +166,7 @@ async function syncUrl(value: string) {
   const next: Record<string, string> = {}
   if (value) next.q = value
   if (timeRange.value) next.range = ROUTE_RANGE[timeRange.value]
+  if (maxResults.value) next.maxResults = String(maxResults.value)
 
   try {
     await router.replace({ query: next })
@@ -216,17 +228,11 @@ async function runSearch(rawQuery = query.value) {
     const started = performance.now()
     const terms = extractTerms(value)
     const nextSegments = response.results.map(result => highlightSegments(result.snippet, terms))
-    const nextSuggestions = mergeSuggestionLists(value, response.suggestions)
 
     segments.value = nextSegments
-    suggestions.value = nextSuggestions
     aiMs.value = Math.max(1, Math.round(performance.now() - started))
 
-    if (response.suggestions.length) {
-      suggestCache.set(value.toLowerCase(), response.suggestions)
-    }
-
-    results.value = response.results
+    results.value = response.results.slice(0, maxResults.value)
     filteredCount.value = response.filteredCount
     searxMs.value = response.timings.searx
     submittedQuery.value = response.query || value
@@ -267,6 +273,18 @@ function setRange(value: TimeRange) {
   if (timeRange.value === value) return
 
   timeRange.value = value
+
+  if (submittedQuery.value) {
+    void runSearch(submittedQuery.value)
+  } else {
+    void syncUrl(query.value)
+  }
+}
+
+function setMaxResults(limit: ResultsLimit) {
+  if (maxResults.value === limit) return
+
+  maxResults.value = limit
 
   if (submittedQuery.value) {
     void runSearch(submittedQuery.value)
@@ -542,7 +560,7 @@ onBeforeUnmount(() => {
         @submit.prevent="submit"
       >
         <span class="shrink-0 select-none font-mono text-sm leading-none text-faint" aria-hidden="true">
-          &gt;
+          >
         </span>
 
         <input
@@ -565,6 +583,26 @@ onBeforeUnmount(() => {
           @blur="onInputBlur"
           @keydown="onInputKeydown"
         />
+
+        <div
+          role="group"
+          aria-label="Results limit"
+          class="flex shrink-0 items-center rounded-full border border-line/80 bg-canvas/50 p-0.5 font-mono text-[9px] uppercase tracking-wider sm:text-[10px] mx-2"
+        >
+          <button
+            v-for="limit in RESULTS_LIMITS"
+            :key="limit"
+            type="button"
+            :aria-pressed="maxResults === limit"
+            :class="[
+              'rounded-full px-1.5 py-0.5 leading-none transition-colors duration-100',
+              maxResults === limit ? 'bg-elevated text-fg' : 'text-faint hover:text-muted',
+            ]"
+            @click="setMaxResults(limit)"
+          >
+            {{ limit }}
+          </button>
+        </div>
 
         <div
           role="group"
@@ -653,6 +691,14 @@ onBeforeUnmount(() => {
         <p class="mt-2 font-mono text-xs leading-relaxed text-dim">
           Nothing matched “{{ submittedQuery }}”.<br >
           Try a broader query or set the filter to ALL.
+        </p>
+      </div>
+
+      <div v-else-if="!results.length" class="py-16 text-center">
+        <p class="font-mono text-[11px] uppercase tracking-wider text-faint">No results</p>
+        <p class="mt-2 font-mono text-xs leading-relaxed text-dim">
+          Nothing matched “{{ submittedQuery }}”.<br >
+          Try a different query or change the filters.
         </p>
       </div>
 
