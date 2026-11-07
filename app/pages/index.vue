@@ -230,11 +230,11 @@ async function runSearch(rawQuery = query.value) {
     const nextSegments = response.results.map(result => highlightSegments(result.snippet, terms))
 
     segments.value = nextSegments
-    aiMs.value = Math.max(1, Math.round(performance.now() - started))
 
     results.value = response.results.slice(0, maxResults.value)
     filteredCount.value = response.filteredCount
     searxMs.value = response.timings.searx
+    aiMs.value = response.timings.ai || 0
     submittedQuery.value = response.query || value
     activeIndex.value = -1
 

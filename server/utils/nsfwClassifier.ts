@@ -1,7 +1,7 @@
 // server/utils/nsfwClassifier.ts
 // ------------------------------------------
-// Zero-shot text classifier for NSFW/adult content
-// Uses facebook/bart-large-mnli via @xenova/transformers
+// NSFW text classifier using embeddings similarity
+// Uses Xenova/all-MiniLM-L6-v2 via @xenova/transformers
 // Runs server-side in Node.js (Nuxt server)
 // ------------------------------------------
 
@@ -10,39 +10,81 @@ import { pipeline } from '@xenova/transformers'
 // ============================================================
 // CONFIG
 // ============================================================
-const MODEL_NAME = 'facebook/bart-large-mnli'
+const MODEL_NAME = 'Xenova/all-MiniLM-L6-v2'
 
-// Confidence threshold: if "sexual/revealing" score >= this, filter the result
-// Lower = more aggressive filtering, Higher = more permissive
-export const NSFW_THRESHOLD = 0.6
+// Margin threshold: NSFW score must exceed safe score by this amount to block
+// 0.00 = block whenever NSFW similarity >= safe similarity (catches stores/educational too)
+export const NSFW_MARGIN_THRESHOLD = 0.00
 
-// Zero-shot candidate labels
-const CANDIDATE_LABELS = [
+// ============================================================
+// UNSAFE vs SAFE LABELS
+// Labels that capture commercial/revealing content (stores, galleries, etc.)
+// ============================================================
+const UNSAFE_LABELS = [
   'sexual or revealing adult content',
-  'safe general content',
+  'bikini store product catalog',
+  'thong lingerie shop',
+  'swimsuit models gallery',
+  'revealing clothing photos',
+  'adult content website',
 ] as const
 
-type NsfwLabel = (typeof CANDIDATE_LABELS)[number]
+const SAFE_LABELS = [
+  'safe general content',
+  'educational article',
+  'news website',
+  'technical documentation',
+] as const
+
+type UnsafeLabel = (typeof UNSAFE_LABELS)[number]
+type SafeLabel = (typeof SAFE_LABELS)[number]
 
 // ============================================================
 // MODEL LOADING (cached in server memory)
 // ============================================================
-let classifier: ReturnType<typeof pipeline> | null = null
-let classifierPromise: Promise<ReturnType<typeof pipeline>> | null = null
+let extractor: ReturnType<typeof pipeline> | null = null
+let extractorPromise: Promise<ReturnType<typeof pipeline>> | null = null
 
-async function loadClassifier() {
-  if (classifier) return classifier
-  if (classifierPromise) return classifierPromise
+let unsafeEmbeddings: number[][] | null = null
+let safeEmbeddings: number[][] | null = null
 
-  classifierPromise = (async () => {
-    console.log('[NSFW] Loading zero-shot classifier:', MODEL_NAME)
-    const clf = await pipeline('zero-shot-classification', MODEL_NAME)
-    console.log('[NSFW] Classifier loaded successfully')
-    return clf
+// URL cache: once a result URL is classified NSFW, block it instantly
+// without re-running the model
+const nsfwUrlCache = new Set<string>()
+
+async function loadExtractor() {
+  if (extractor) return extractor
+  if (extractorPromise) return extractorPromise
+
+  extractorPromise = (async () => {
+    const started = Date.now()
+    console.log('[NSFW] Loading embeddings model:', MODEL_NAME)
+    const ext = await pipeline('feature-extraction', MODEL_NAME)
+    const loadMs = Date.now() - started
+    console.log(`[NSFW] Embeddings model loaded successfully in ${loadMs}ms`)
+    return ext
   })()
 
-  classifier = await classifierPromise
-  return classifier
+  extractor = await extractorPromise
+  return extractor
+}
+
+async function getLabelEmbeddings() {
+  if (unsafeEmbeddings && safeEmbeddings) return { unsafeEmbeddings, safeEmbeddings }
+
+  const ext = await loadExtractor()
+
+  const [unsafeResult, safeResult] = await Promise.all([
+    ext(UNSAFE_LABELS, { pooling: 'mean', normalize: true }),
+    ext(SAFE_LABELS, { pooling: 'mean', normalize: true }),
+  ])
+
+  const toArray = (t: any) => (t.tolist ? t.tolist() : Array.from(t))
+
+  unsafeEmbeddings = unsafeResult.map(toArray)
+  safeEmbeddings = safeResult.map(toArray)
+
+  return { unsafeEmbeddings, safeEmbeddings }
 }
 
 // ============================================================
@@ -53,68 +95,135 @@ export interface NsfwClassification {
   confidence: number
   nsfwScore: number
   safeScore: number
+  margin: number
+  inferenceMs: number
+  cached: boolean
   reason: string
 }
 
+function cosineSimilarity(a: number[], b: number[]): number {
+  let dot = 0
+  let normA = 0
+  let normB = 0
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i] * b[i]
+    normA += a[i] * a[i]
+    normB += b[i] * b[i]
+  }
+  normA = Math.sqrt(normA)
+  normB = Math.sqrt(normB)
+  if (normA === 0 || normB === 0) return 0
+  return dot / (normA * normB)
+}
+
 /**
- * Classify a text string as NSFW or safe using zero-shot classification.
+ * Classify a text string as NSFW or safe using embeddings similarity.
  * @param text Combined title + snippet text to analyze
+ * @param url Optional URL for cache lookup/storage
  * @returns Classification result
  */
-export async function classifyTextNsfw(text: string): Promise<NsfwClassification> {
+export async function classifyTextNsfw(text: string, url?: string): Promise<NsfwClassification> {
+  // Check URL cache first — instant block for previously classified NSFW URLs
+  if (url && nsfwUrlCache.has(url)) {
+    return {
+      isLikelyNsfw: true,
+      confidence: 1,
+      nsfwScore: 1,
+      safeScore: 0,
+      margin: 1,
+      inferenceMs: 0,
+      cached: true,
+      reason: 'Cached NSFW URL',
+    }
+  }
+
   if (!text || !text.trim()) {
     return {
       isLikelyNsfw: false,
       confidence: 0,
       nsfwScore: 0,
       safeScore: 1,
+      margin: -1,
+      inferenceMs: 0,
+      cached: false,
       reason: 'Empty text',
     }
   }
 
-  const clf = await loadClassifier()
-
-  const result = await clf(text, {
-    candidate_labels: CANDIDATE_LABELS,
+  const ext = await loadExtractor()
+  const started = Date.now()
+  const result = await ext([text], {
+    pooling: 'mean',
+    normalize: true,
   })
+  const inferenceMs = Date.now() - started
 
-  // result.labels is ordered by score descending
-  const nsfwIdx = result.labels.indexOf('sexual or revealing adult content')
-  const safeIdx = result.labels.indexOf('safe general content')
+  const toArray = (t: any) => (t.tolist ? t.tolist() : Array.from(t))
+  const emb = toArray(result[0])
 
-  const nsfwScore = nsfwIdx >= 0 ? result.scores[nsfwIdx] : 0
-  const safeScore = safeIdx >= 0 ? result.scores[safeIdx] : 0
+  const { unsafeEmbeddings, safeEmbeddings } = await getLabelEmbeddings()
 
-  const isLikelyNsfw = nsfwScore >= NSFW_THRESHOLD
-  const confidence = Math.max(nsfwScore, safeScore)
+  // Max similarity to any unsafe label
+  let maxUnsafeScore = 0
+  for (const unsafeEmb of unsafeEmbeddings) {
+    const sim = cosineSimilarity(emb, unsafeEmb)
+    if (sim > maxUnsafeScore) maxUnsafeScore = sim
+  }
+
+  // Max similarity to any safe label
+  let maxSafeScore = 0
+  for (const safeEmb of safeEmbeddings) {
+    const sim = cosineSimilarity(emb, safeEmb)
+    if (sim > maxSafeScore) maxSafeScore = sim
+  }
+
+  const margin = maxUnsafeScore - maxSafeScore
+  const isLikelyNsfw = margin > NSFW_MARGIN_THRESHOLD
+
+  // Cache NSFW URLs for instant blocking on repeat
+  if (isLikelyNsfw && url) {
+    nsfwUrlCache.add(url)
+    console.log(`[NSFW] Cached URL as NSFW: ${url}`)
+  }
 
   return {
     isLikelyNsfw,
-    confidence,
-    nsfwScore,
-    safeScore,
+    confidence: Math.abs(margin),
+    nsfwScore: maxUnsafeScore,
+    safeScore: maxSafeScore,
+    margin,
+    inferenceMs,
+    cached: false,
     reason: isLikelyNsfw
-      ? `NSFW score ${nsfwScore.toFixed(2)} >= threshold ${NSFW_THRESHOLD}`
-      : `Safe score ${safeScore.toFixed(2)}`,
+      ? `NSFW margin ${margin.toFixed(3)} > threshold ${NSFW_MARGIN_THRESHOLD}`
+      : `Safe margin ${(-margin).toFixed(3)}`,
   }
 }
 
 /**
  * Check if a search result likely contains NSFW/adult content.
- * @param result Search result with title and optionally snippet
+ * @param result Search result with title, url and optionally snippet
  * @returns Classification result
  */
 export async function classifyResultNsfw(result: {
   title: string
+  url: string
   snippet?: string
 }): Promise<NsfwClassification> {
   const combined = (result.title + ' ' + (result.snippet || '')).trim()
-  return classifyTextNsfw(combined)
+  return classifyTextNsfw(combined, result.url)
 }
 
 /**
- * Get the loaded classifier (for advanced use).
+ * Get the loaded extractor (for advanced use).
  */
-export async function getClassifier() {
-  return loadClassifier()
+export async function getExtractor() {
+  return loadExtractor()
+}
+
+/**
+ * Get the number of cached NSFW URLs (for debugging/monitoring).
+ */
+export function getCachedNsfwUrlCount(): number {
+  return nsfwUrlCache.size
 }

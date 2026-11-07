@@ -16,6 +16,7 @@ export interface SearchApiResponse {
   filteredCount: number
   timings: {
     searx: number
+    ai: number
   }
 }
 

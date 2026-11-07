@@ -20,7 +20,7 @@ defineEmits<{
   >
     <p class="min-w-0 truncate tabular-nums">
       <template v-if="props.loading">
-        — RESULTS · — FILTERED · SEARX —MS · UI —MS
+        — RESULTS · — FILTERED · SEARX —MS · AI —MS
       </template>
       <template v-else>
         <span>{{ props.resultCount }} RESULTS</span>
@@ -29,7 +29,7 @@ defineEmits<{
         <span class="text-dim"> · </span>
         <span>SEARX {{ props.searxMs || '—' }}MS</span>
         <span class="text-dim"> · </span>
-        <span title="Local highlight & ranking pass">UI {{ props.aiMs || '—' }}MS</span>
+        <span title="AI NSFW inference pass">AI {{ props.aiMs || '—' }}MS</span>
       </template>
     </p>
 

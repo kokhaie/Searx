@@ -7,7 +7,6 @@ import {
   filterResults,
 } from '../utils/contentGuard'
 import { classifyResultNsfw } from '../utils/nsfwClassifier'
-
 const TIME_RANGES = new Set<TimeRange>(['', 'day', 'week', 'month', 'year'])
 const MAX_RESULTS = 5
 
@@ -52,12 +51,15 @@ export default defineEventHandler(async (event) => {
     // Step 1: Block social media domains
     const cleanResults = filterResults(response.results)
 
-    // Step 2: Block NSFW/adult content via AI zero-shot classification
+    // Step 2: Block NSFW/adult content via AI embeddings classifier
     // Runs BEFORE result limit slicing so NSFW results never reach the browser
+    const aiStarted = Date.now()
     const nsfwFiltered = await filterNsfwResults(cleanResults)
+    const aiMs = Date.now() - aiStarted
 
     response.filteredCount += countBeforeGuard - nsfwFiltered.length
     response.results = nsfwFiltered.slice(0, MAX_RESULTS)
+    response.timings.ai = aiMs
 
     return response
   } catch (error) {
@@ -81,7 +83,7 @@ export default defineEventHandler(async (event) => {
  * "sexual or revealing adult content" above the threshold.
  * Fails open (returns original results) if the classifier fails to load.
  */
-async function filterNsfwResults(results: Array<{ title: string; snippet?: string }>) {
+async function filterNsfwResults(results: Array<{ title: string; url: string; snippet?: string }>) {
   if (results.length === 0) return results
 
   try {
@@ -95,7 +97,6 @@ async function filterNsfwResults(results: Array<{ title: string; snippet?: strin
     console.log(
       `[NSFW] Filtered ${results.length - filtered.length} of ${results.length} results as NSFW`,
     )
-
     return filtered
   } catch (err) {
     // Classifier failed (model download, network, etc.) — fail open
