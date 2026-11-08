@@ -28,6 +28,8 @@ WORKDIR /app
 
 # Nitro node-server output is self-contained.
 COPY --from=build /app/.output ./.output
+# Domain blocklist read at runtime by server/utils/contentGuard.ts
+COPY --from=build /app/server/blocked-domains.txt ./.output/server/blocked-domains.txt
 
 EXPOSE 3000
 CMD ["node", ".output/server/index.mjs"]

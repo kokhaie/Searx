@@ -76,7 +76,17 @@ DISTRACTING_EXAMPLES = [
     "راز عجیب ثروتمند شدن در ۳ روز با این طلسم باستانی و تست‌شده!",
     "فال روزانه متولدین فروردین: با این روش در عشق معجزه رخ می‌دهد!",
     "کاهش وزن ۲۰ کیلوگرمی در یک هفته بدون رژیم و ورزش! (روش ممنوعه)",
-    "پیش‌بینی تکان‌دهنده بابا وانگا از آینده جهان در سال جدید"
+    "پیش‌بینی تکان‌دهنده بابا وانگا از آینده جهان در سال جدید",
+
+    # فروشگاه لنگری (EN) — پنتیز، شورت، سوتین
+    "Women's panties 3-pack in cotton and lace, all sizes available online",
+    "Lingerie and sleepwear store for women: bras, knickers and nightwear",
+    "Shop ladies underwear: thongs, briefs and g-strings at low prices",
+
+    # فروشگاه لنگری (FR) — etam و مشابه‌های فرانسوی
+    "Boutique en ligne de lingerie pour femme : soutien-gorge, culottes et bodies",
+    "Vente de sous-vêtements femme en ligne : culottes et string à petit prix",
+    "Maillot de bain femme : bikinis et maillots une pièce pour l'été"
 ]
 
 model: StaticModel | None = None

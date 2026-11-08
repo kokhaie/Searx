@@ -19,7 +19,19 @@ export const SOCIAL_BLOCKLIST_URL =
 export const NSFW_BLOCKLIST_URL =
   'https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/nsfw.txt'
 
-const BLOCKED_DOMAINS_FILE = path.resolve(process.cwd(), 'server', 'blocked-domains.txt')
+// Local domains file, resolved from several candidate paths
+// (dev cwd, Nuxt .output runtime in Docker, current dir fallback)
+function findBlockedDomainsFile(): string | null {
+  const candidates = [
+    path.resolve(process.cwd(), 'server', 'blocked-domains.txt'),
+    path.resolve(process.cwd(), '.output', 'server', 'blocked-domains.txt'),
+    path.resolve(process.cwd(), 'blocked-domains.txt'),
+  ]
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) return candidate
+  }
+  return null
+}
 
 // ============================================================
 // DOMAIN STORAGE
@@ -102,14 +114,15 @@ export async function initBlocklists(): Promise<void> {
 
     // Source 3: local blocked-domains.txt
     try {
-      if (!fs.existsSync(BLOCKED_DOMAINS_FILE)) {
-        console.warn(`[Guard] Blocked domains file not found: ${BLOCKED_DOMAINS_FILE}`)
+      const domainsFile = findBlockedDomainsFile()
+      if (!domainsFile) {
+        console.warn('[Guard] blocked-domains.txt not found in any expected location; local list skipped')
       } else {
-        const text = fs.readFileSync(BLOCKED_DOMAINS_FILE, 'utf-8')
+        const text = fs.readFileSync(domainsFile, 'utf-8')
         const local = text.split('\n').map(parseDomainLine).filter((d): d is string => !!d)
         for (const d of local) blockedDomains.add(d)
         totalLoaded += local.length
-        console.log(`[Guard] Loaded ${local.length} domains from blocked-domains.txt`)
+        console.log(`[Guard] Loaded ${local.length} domains from ${domainsFile}`)
       }
     } catch (e) {
       console.warn('[Guard] Error loading blocked-domains.txt:', e)
