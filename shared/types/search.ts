@@ -17,6 +17,7 @@ export interface SearchApiResponse {
   timings: {
     searx: number
     ai: number
+    semantic: number
   }
 }
 

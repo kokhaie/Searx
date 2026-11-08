@@ -174,6 +174,6 @@ export function buildSearchResponse(
     suggestions: normalizeSuggestions(raw.suggestions),
     rawCount: rawResults.length,
     filteredCount: rawResults.length - results.length,
-    timings: { searx: searxMs, ai: aiMs },
+    timings: { searx: searxMs, ai: aiMs, semantic: 0 },
   }
 }

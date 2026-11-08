@@ -5,15 +5,14 @@
 const AI_FILTER_URL = process.env.AI_FILTER_URL || "http://localhost:8000"
 
 export interface SearchResultItem {
-  id: string
   title: string
+  url: string
   snippet?: string
-  url?: string
 }
 
 export interface BlockedItem {
   id: string
-  risk_prob: number   // percentage 0-100
+  risk_pct: number // percentage 0-100
   text: string
 }
 
@@ -36,7 +35,15 @@ async function callFilterService(
   })
 
   if (!res.ok) {
-    throw new Error(`AI filter service returned ${res.status}`)
+    // Read the body so FastAPI's 422 validation detail is visible in logs
+    let detail = ""
+    try {
+      const body = await res.json()
+      detail = JSON.stringify(body)
+    } catch {
+      detail = await res.text().catch(() => "")
+    }
+    throw new Error(`AI filter service returned ${res.status}: ${detail}`)
   }
 
   return (await res.json()) as FilterResponse
@@ -44,6 +51,7 @@ async function callFilterService(
 
 /**
  * Filter search results via the Python microservice.
+ * URL is used as the item id (results are deduplicated by URL already).
  * Returns { allowed, blocked } so you can render/log separately.
  * On service failure, fails open (allows all).
  */
@@ -56,8 +64,8 @@ export async function filterSearchResults(
   }
 
   const items = results.map((r) => ({
-    id: r.id,
-    title: r.title,
+    id: r.url,
+    title: r.title || "",
     snippet: r.snippet || "",
   }))
 
@@ -65,10 +73,10 @@ export async function filterSearchResults(
     const { allowed_ids, blocked } = await callFilterService(items, threshold)
 
     const allowedSet = new Set(allowed_ids)
-    const blockedIds = new Set(blocked.map((b) => b.id))
+    const blockedSet = new Set(blocked.map((b) => b.id))
 
-    const allowed = results.filter((r) => allowedSet.has(r.id))
-    const blockedResults = results.filter((r) => blockedIds.has(r.id))
+    const allowed = results.filter((r) => allowedSet.has(r.url))
+    const blockedResults = results.filter((r) => blockedSet.has(r.url))
 
     return { allowed, blocked: blockedResults }
   } catch (err) {
