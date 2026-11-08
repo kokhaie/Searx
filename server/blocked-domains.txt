@@ -1,0 +1,53 @@
+# Blocked domains for the search engine
+# One domain per line. Lines starting with # are comments.
+# All subdomains are blocked automatically (e.g. m.facebook.com is blocked if facebook.com is listed).
+
+# --- Lingerie / intimate apparel / swimwear ---
+victoriassecret.com
+adoreme.com
+savagex.com
+ae.com
+bravissimo.com
+triumph.com
+intimissimi.com
+calzedonia.com
+hunkemoller.com
+agentprovocateur.com
+journelle.com
+thirdlove.com
+wacoal-america.com
+bluebellalingerie.com
+seafolly.com
+speedo.com
+calvinklein.us
+tezenis.com
+etam.com
+womensecret.com
+
+# --- Dating / hookup ---
+tinder.com
+bumble.com
+hinge.co
+match.com
+okcupid.com
+grindr.com
+pof.com
+eharmony.com
+her.app
+coffeemeetsbagel.com
+elitesingles.com
+meetic.fr
+parship.de
+badoo.com
+
+# --- Intimate products ---
+durex.com
+trojanbrands.com
+skyn.com
+forhims.com
+ro.co
+lloydspharmacy.com
+boots.com
+cvs.com
+walgreens.com
+thinx.com

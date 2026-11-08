@@ -7,6 +7,7 @@ import {
   filterResults,
 } from '../utils/contentGuard'
 import { classifyResultNsfw } from '../utils/nsfwClassifier'
+import { filterSearchResults } from '../utils/semanticFilter'
 const TIME_RANGES = new Set<TimeRange>(['', 'day', 'week', 'month', 'year'])
 const MAX_RESULTS = 5
 
@@ -48,8 +49,10 @@ export default defineEventHandler(async (event) => {
     const response = buildSearchResponse(payload, query, Math.max(1, Date.now() - started))
     const countBeforeGuard = response.results.length
 
-    // Step 1: Block social media domains
+    // Step 1: Block all blocked domains (social, lingerie, dating, etc. from blocked-domains.txt)
+    // Subdomains are blocked automatically (e.g. m.facebook.com blocked by facebook.com).
     const cleanResults = filterResults(response.results)
+    response.filteredCount += response.results.length - cleanResults.length
 
     // Step 2: Block NSFW/adult content via AI embeddings classifier
     // Runs BEFORE result limit slicing so NSFW results never reach the browser
@@ -57,9 +60,19 @@ export default defineEventHandler(async (event) => {
     const nsfwFiltered = await filterNsfwResults(cleanResults)
     const aiMs = Date.now() - aiStarted
 
-    response.filteredCount += countBeforeGuard - nsfwFiltered.length
-    response.results = nsfwFiltered.slice(0, MAX_RESULTS)
+    response.filteredCount += cleanResults.length - nsfwFiltered.length
+
+    // Step 3: Semantic safety filter via Python microservice (thongs, bikinis, lingerie, etc.)
+    const semanticStarted = Date.now()
+    const { allowed, blocked } = await filterSearchResults(nsfwFiltered, 0.50)
+    response.results = allowed.slice(0, MAX_RESULTS)
+    response.filteredCount += nsfwFiltered.length - allowed.length
     response.timings.ai = aiMs
+    response.timings.semantic = Date.now() - semanticStarted
+
+    if (blocked.length > 0) {
+      console.log(`[SemanticFilter] Blocked ${blocked.length} results as distracting/adult`)
+    }
 
     return response
   } catch (error) {

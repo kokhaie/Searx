@@ -37,3 +37,4 @@ searxng
 README.md
 *.md
 !package.json
+venv

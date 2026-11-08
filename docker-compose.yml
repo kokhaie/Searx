@@ -42,6 +42,25 @@ services:
     networks:
       - searxnet
 
+  ai-filter:
+    container_name: search-ai-filter
+    build:
+      context: ./ai-filter
+      dockerfile: Dockerfile
+    restart: always
+    environment:
+      - OMP_NUM_THREADS=1
+      - OPENBLAS_NUM_THREADS=1
+      - MKL_NUM_THREADS=1
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    networks:
+      - searxnet
+
   app:
     container_name: search-app
     build:
@@ -49,11 +68,16 @@ services:
       dockerfile: Dockerfile
     restart: always
     depends_on:
-      - core
+      core:
+        condition: service_started
+      ai-filter:
+        condition: service_healthy
     environment:
       # Server-side proxy target on the internal network — the only link
       # between the frontend and SearXNG.
       NUXT_SEARX_URL: http://core:8080
+      # AI filter microservice (Python FastAPI)
+      AI_FILTER_URL: http://ai-filter:8000
       HOST: 0.0.0.0
       PORT: 3000
       NODE_ENV: production

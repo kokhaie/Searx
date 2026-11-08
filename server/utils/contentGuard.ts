@@ -1,137 +1,153 @@
 // server/utils/contentGuard.ts
 // ------------------------------------------
-// Social media domain blocklist using hagezi dns-blocklists
+// Domain blocklist from three separate sources:
+//  1. hagezi social blocklist (CDN)
+//  2. hagezi NSFW blocklist (CDN)
+//  3. local server/blocked-domains.txt
+// All subdomains are blocked automatically (e.g. m.facebook.com blocked by facebook.com).
 // ------------------------------------------
 
+import fs from 'node:fs'
+import path from 'node:path'
+
 // ============================================================
-// CONFIG: hagezi blocklists via jsDelivr CDN
+// CONFIG: CDN blocklists + local domains file
 // ============================================================
 export const SOCIAL_BLOCKLIST_URL =
-  'https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/social.txt';
+  'https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/social.txt'
 
 export const NSFW_BLOCKLIST_URL =
-  'https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/nsfw.txt';
+  'https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/nsfw.txt'
+
+const BLOCKED_DOMAINS_FILE = path.resolve(process.cwd(), 'server', 'blocked-domains.txt')
 
 // ============================================================
-// DOMAIN PARSING & STORAGE
+// DOMAIN STORAGE
 // ============================================================
-const blockedDomains = new Set<string>(); // O(1) lookups
-let isInitialized = false;
-let initPromise: Promise<void> | null = null;
+const blockedDomains = new Set<string>() // O(1) lookups
+let isInitialized = false
+let initPromise: Promise<void> | null = null
 
-function parseSocialListLine(line: string): string | null {
-  let trimmed = line.trim();
-  if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('!')) return null;
+function parseDomainLine(line: string): string | null {
+  let trimmed = line.trim()
+  if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('!')) return null
 
   // Strip AdBlock syntax: ||example.com^
   if (trimmed.startsWith('||')) {
-    trimmed = trimmed.slice(2);
+    trimmed = trimmed.slice(2)
   }
   if (trimmed.endsWith('^')) {
-    trimmed = trimmed.slice(0, -1);
+    trimmed = trimmed.slice(0, -1)
   }
 
   // Hosts format: "0.0.0.0 domain.com" or "127.0.0.1 domain.com"
-  const hostsMatch = trimmed.match(/^(?:0\.0\.0\.0|127\.0\.0\.1)\s+(\S+)/);
+  const hostsMatch = trimmed.match(/^(?:0\.0\.0\.0|127\.0\.0\.1)\s+(\S+)/)
   if (hostsMatch?.[1]) {
-    trimmed = hostsMatch[1];
+    trimmed = hostsMatch[1]
   }
 
   // Strip protocol if present
-  trimmed = trimmed.replace(/^https?:\/\//, '');
+  trimmed = trimmed.replace(/^https?:\/\//, '')
 
   // Extract hostname (strip paths, ports, query params)
-  const domainPart = trimmed.split('/')[0]?.split(':')[0]?.split('?')[0]?.trim();
+  const domainPart = trimmed.split('/')[0]?.split(':')[0]?.split('?')[0]?.trim()
   if (!domainPart || /^\d+\.\d+\.\d+\.\d+$/.test(domainPart) || !domainPart.includes('.')) {
-    return null;
+    return null
   }
 
-  return domainPart.toLowerCase().replace(/^www\./, '');
+  return domainPart.toLowerCase().replace(/^www\./, '')
+}
+
+async function fetchAndParse(url: string): Promise<string[]> {
+  const res = await fetch(url, { headers: { 'Cache-Control': 'max-age: 86400' } })
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  const text = await res.text()
+  const found: string[] = []
+  for (const line of text.split('\n')) {
+    const domain = parseDomainLine(line)
+    if (domain) found.push(domain)
+  }
+  return found
 }
 
 // ============================================================
-// INIT: download social + NSFW lists + compile to RAM
-// Uses global fetch. Caches in RAM once loaded.
+// INIT: load all three blocklists
 // ============================================================
 export async function initBlocklists(): Promise<void> {
-  if (isInitialized && blockedDomains.size > 0) return;
-  if (initPromise) return initPromise;
+  if (isInitialized && blockedDomains.size > 0) return
+  if (initPromise) return initPromise
 
   initPromise = (async () => {
-    let totalLoaded = 0;
+    let totalLoaded = 0
 
-    // Load social blocklist
+    // Source 1: CDN social blocklist
     try {
-      const res = await fetch(SOCIAL_BLOCKLIST_URL, {
-        headers: { 'Cache-Control': 'max-age: 86400' },
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const text = await res.text();
-      const lines = text.split('\n');
-      for (const line of lines) {
-        const domain = parseSocialListLine(line);
-        if (domain) {
-          blockedDomains.add(domain);
-          totalLoaded++;
-        }
-      }
-      console.log(`[Guard] Loaded social domains into memory.`);
+      const social = await fetchAndParse(SOCIAL_BLOCKLIST_URL)
+      for (const d of social) blockedDomains.add(d)
+      totalLoaded += social.length
+      console.log(`[Guard] Loaded ${social.length} social domains from CDN`)
     } catch (e) {
-      console.warn('[Guard] Error fetching social blocklist:', e);
+      console.warn('[Guard] Error fetching social blocklist:', e)
     }
 
-    // Load NSFW blocklist
+    // Source 2: CDN NSFW blocklist
     try {
-      const res = await fetch(NSFW_BLOCKLIST_URL, {
-        headers: { 'Cache-Control': 'max-age: 86400' },
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const text = await res.text();
-      const lines = text.split('\n');
-      for (const line of lines) {
-        const domain = parseSocialListLine(line);
-        if (domain) {
-          blockedDomains.add(domain);
-          totalLoaded++;
-        }
-      }
-      console.log(`[Guard] Loaded NSFW domains into memory.`);
+      const nsfw = await fetchAndParse(NSFW_BLOCKLIST_URL)
+      for (const d of nsfw) blockedDomains.add(d)
+      totalLoaded += nsfw.length
+      console.log(`[Guard] Loaded ${nsfw.length} NSFW domains from CDN`)
     } catch (e) {
-      console.warn('[Guard] Error fetching NSFW blocklist:', e);
+      console.warn('[Guard] Error fetching NSFW blocklist:', e)
     }
 
-    isInitialized = true;
-    console.log(`[Guard] Loaded ${blockedDomains.size} total blocked domains into memory.`);
-  })();
+    // Source 3: local blocked-domains.txt
+    try {
+      if (!fs.existsSync(BLOCKED_DOMAINS_FILE)) {
+        console.warn(`[Guard] Blocked domains file not found: ${BLOCKED_DOMAINS_FILE}`)
+      } else {
+        const text = fs.readFileSync(BLOCKED_DOMAINS_FILE, 'utf-8')
+        const local = text.split('\n').map(parseDomainLine).filter((d): d is string => !!d)
+        for (const d of local) blockedDomains.add(d)
+        totalLoaded += local.length
+        console.log(`[Guard] Loaded ${local.length} domains from blocked-domains.txt`)
+      }
+    } catch (e) {
+      console.warn('[Guard] Error loading blocked-domains.txt:', e)
+    }
 
-  return initPromise;
+    isInitialized = true
+    console.log(`[Guard] ${blockedDomains.size} total unique blocked domains in memory (${totalLoaded} raw entries).`)
+  })()
+
+  return initPromise
 }
 
 // ============================================================
 // IS BLOCKED: check if a URL's hostname or any parent domain is blocked
+// e.g. m.facebook.com -> facebook.com (blocked)
 // ============================================================
 export function isBlocked(url: string): boolean {
   try {
-    let hostname = new URL(url).hostname.toLowerCase().replace(/^www\./, '');
-    if (!hostname) return false;
+    let hostname = new URL(url).hostname.toLowerCase().replace(/^www\./, '')
+    if (!hostname) return false
 
-    // Check exact hostname and parent domain suffixes (e.g. m.facebook.com -> facebook.com)
+    // Check exact hostname and parent domain suffixes
     while (hostname.includes('.')) {
       if (blockedDomains.has(hostname)) {
-        return true;
+        return true
       }
-      const nextDot = hostname.indexOf('.');
-      if (nextDot === -1) break;
-      hostname = hostname.slice(nextDot + 1);
+      const nextDot = hostname.indexOf('.')
+      if (nextDot === -1) break
+      hostname = hostname.slice(nextDot + 1)
     }
-    return false;
+    return false
   } catch {
-    return false;
+    return false
   }
 }
 
 // ============================================================
-// FILTER RESULTS: remove results from blocked social domains
+// FILTER RESULTS: remove results from blocked domains
 // ============================================================
 export function filterResults<T extends { url: string }>(results: T[]): T[] {
   return results.filter((r) => !isBlocked(r.url))
