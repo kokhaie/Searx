@@ -51,3 +51,8 @@ boots.com
 cvs.com
 walgreens.com
 thinx.com
+
+
+# --- extra ---
+
+wikipedia.org

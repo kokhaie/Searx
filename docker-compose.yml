@@ -27,8 +27,8 @@ services:
       # The fallback lets `docker compose up` run with zero preparation.
       - SEARXNG_SECRET=${SEARXNG_SECRET:-please-change-this-dev-secret}
     # Intentionally no `ports:` — SearXNG stays private.
-    ports:
-      - "8080:8080"
+    expose:
+      - 8080
     networks:
       - searxnet
 
@@ -52,12 +52,14 @@ services:
       - OMP_NUM_THREADS=1
       - OPENBLAS_NUM_THREADS=1
       - MKL_NUM_THREADS=1
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 15s
+    # healthcheck:
+    #   test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8000/health"]
+    #   interval: 30s
+    #   timeout: 10s
+    #   retries: 3
+    #   start_period: 15s
+    expose:
+      - 8000
     networks:
       - searxnet
 
@@ -70,8 +72,8 @@ services:
     depends_on:
       core:
         condition: service_started
-      ai-filter:
-        condition: service_healthy
+      # ai-filter:
+      #   condition: service_healthy
     environment:
       # Server-side proxy target on the internal network — the only link
       # between the frontend and SearXNG.
@@ -81,9 +83,8 @@ services:
       HOST: 0.0.0.0
       PORT: 3000
       NODE_ENV: production
-    ports:
-      # The only published port in the stack.
-      - ${APP_PORT:-3000}:3000
+    expose:
+      - 3000
     networks:
       - searxnet
 
