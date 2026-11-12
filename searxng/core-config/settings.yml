@@ -4,7 +4,6 @@ search:
   autocomplete: "google"
   default_lang: "en"
   formats:
-    - html
     - json
 
 server:
