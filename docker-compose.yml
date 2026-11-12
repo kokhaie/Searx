@@ -1,5 +1,6 @@
-# Single-file stack — `docker compose up --build` is all you need:
-# no .env, no SearXNG settings to edit, no rate limiter.
+# Single-file stack — `docker compose up` is all you need:
+# pulls the Nuxt app and ai-filter images from GHCR (built by GitHub
+# Actions) and runs them together with upstream SearXNG and Valkey.
 #
 # Topology:
 #   browser ──> app (Nuxt, the ONLY published port, :3000)
@@ -44,9 +45,8 @@ services:
 
   ai-filter:
     container_name: search-ai-filter
-    build:
-      context: ./ai-filter
-      dockerfile: Dockerfile
+    # Built and pushed to GHCR by .github/workflows/docker.yml
+    image: ghcr.io/kokhaie/searx-ai-filter:${AI_FILTER_TAG:-latest}
     restart: always
     environment:
       - OMP_NUM_THREADS=1
@@ -65,15 +65,11 @@ services:
 
   app:
     container_name: search-app
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ${APP_IMAGE:-ghcr.io/kokhaie/searx-app:${APP_TAG:-latest}}
     restart: always
     depends_on:
       core:
         condition: service_started
-      # ai-filter:
-      #   condition: service_healthy
     environment:
       # Server-side proxy target on the internal network — the only link
       # between the frontend and SearXNG.
