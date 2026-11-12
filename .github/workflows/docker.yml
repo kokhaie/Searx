@@ -2,6 +2,7 @@
 # - app:    Nuxt frontend + SearXNG proxy (from repo root)
 # - ai-filter: Python FastAPI semantic safety filter (from ./ai-filter)
 #
+# Images are published under ghcr.io/kokhaie/searx/<image-name>.
 # SearXNG and Valkey use upstream images (docker.io), not built here.
 
 name: Docker image

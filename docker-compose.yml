@@ -46,7 +46,7 @@ services:
   ai-filter:
     container_name: search-ai-filter
     # Built and pushed to GHCR by .github/workflows/docker.yml
-    image: ghcr.io/kokhaie/searx-ai-filter:${AI_FILTER_TAG:-latest}
+    image: ghcr.io/kokhaie/searx/ai-filter:${AI_FILTER_TAG:-latest}
     restart: always
     environment:
       - OMP_NUM_THREADS=1
@@ -65,7 +65,7 @@ services:
 
   app:
     container_name: search-app
-    image: ${APP_IMAGE:-ghcr.io/kokhaie/searx-app:${APP_TAG:-latest}}
+    image: ${APP_IMAGE:-ghcr.io/kokhaie/searx/app:${APP_TAG:-latest}}
     restart: always
     depends_on:
       core:
