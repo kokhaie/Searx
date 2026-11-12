@@ -77,7 +77,8 @@ services:
       # AI filter microservice (Python FastAPI)
       AI_FILTER_URL: http://ai-filter:8000
       # Valkey search-response cache (5 min TTL)
-      VALKEY_URL: valkey://valkey:6379
+      # ioredis/redis clients use the redis:// scheme even when talking to Valkey
+      VALKEY_URL: redis://valkey:6379
       HOST: 0.0.0.0
       PORT: 3000
       NODE_ENV: production

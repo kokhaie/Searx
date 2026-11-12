@@ -1,9 +1,10 @@
-use_default_settings: false
+use_default_settings: true
 search:
   safe_search: 2
   autocomplete: "google"
   default_lang: "en"
   formats:
+    - html
     - json
 
 server:
@@ -14,14 +15,3 @@ server:
   limiter: false
   public_instance: false
   cors_enabled: false
-
-engines:
-  - name: DuckDuckGo
-    engine: duckduckgo
-    shortcut: ddg
-  - name: Bing
-    engine: bing
-    shortcut: bing
-  - name: Google
-    engine: google
-    shortcut: g
