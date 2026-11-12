@@ -107,7 +107,7 @@ export async function fetchSearxSuggestions(
   const params = new URLSearchParams({ q: query })
   const payload = await requestJson(
     `${base}/autocompleter?${params.toString()}`,
-    2500,
+    800,
     upstreamHeaders(clientIp),
   )
 

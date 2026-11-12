@@ -48,7 +48,7 @@ export default defineEventHandler(async (event) => {
   } catch {
     // Some instances do not expose /autocompleter. Fall back to search suggestions.
     try {
-      const payload = await fetchSearxSearch({ query, timeoutMs: 3000, baseUrl: searxUrl, clientIp })
+      const payload = await fetchSearxSearch({ query, timeoutMs: 1500, baseUrl: searxUrl, clientIp })
       const record = (payload && typeof payload === 'object' ? payload : {}) as Record<string, unknown>
       suggestions = normalizeSuggestions(record.suggestions)
     } catch {

@@ -76,6 +76,10 @@ const aiMs = ref(0)
 let searchAbort: AbortController | null = null
 let suggestAbort: AbortController | null = null
 let suggestTimer: ReturnType<typeof setTimeout> | undefined
+let suggestDebounceStart: number | null = null
+
+const SUGGEST_DEBOUNCE_MS = 300
+const SUGGEST_MAX_WAIT_MS = 1000
 
 const suggestionsOpen = computed(
   () => inputFocused.value && !suggestionsDismissed.value && suggestions.value.length > 0,
@@ -330,9 +334,26 @@ function scheduleSuggestions(value: string) {
   clearTimeout(suggestTimer)
   suggestAbort?.abort()
 
-  suggestTimer = setTimeout(() => {
+  const now = Date.now()
+  if (suggestDebounceStart === null) {
+    suggestDebounceStart = now
+  }
+
+  const maxWaitDeadline = suggestDebounceStart + SUGGEST_MAX_WAIT_MS
+  const timeUntilMaxWait = maxWaitDeadline - now
+
+  if (timeUntilMaxWait <= 0) {
+    suggestDebounceStart = null
     void loadSuggestions(value)
-  }, 220)
+    return
+  }
+
+  const delay = Math.min(SUGGEST_DEBOUNCE_MS, timeUntilMaxWait)
+
+  suggestTimer = setTimeout(() => {
+    suggestDebounceStart = null
+    void loadSuggestions(value)
+  }, delay)
 }
 
 async function loadSuggestions(value: string) {
