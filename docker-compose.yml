@@ -87,6 +87,22 @@ services:
     networks:
       - searxnet
 
+  nginx:
+    container_name: search-nginx
+    image: nginx:alpine
+    restart: always
+    depends_on:
+      app:
+        condition: service_started
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    ports:
+      - 80:80
+      - 443:443
+    networks:
+      - searxnet
+
 volumes:
   core-data:
   valkey-data:
