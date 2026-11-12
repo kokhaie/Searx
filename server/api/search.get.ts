@@ -13,6 +13,7 @@ const MAX_RESULTS = 5
 // never reach the NSFW or semantic classifiers, saving latency on queries
 // that return many raw results.
 const AI_FILTER_TOP_N = 10
+const SEARCH_HARD_TIMEOUT_MS = 8000
 
 function parseTimeRange(value: unknown): TimeRange {
   const range = String(value ?? '').toLowerCase() as TimeRange
@@ -38,22 +39,31 @@ export default defineEventHandler(async (event) => {
 
   const timeRange = parseTimeRange(params.time_range)
 
+  // Hard timeout: if the whole search pipeline takes longer than this,
+  // abort immediately and free the connection instead of holding it open.
+  const abortController = new AbortController()
+  const hardTimeout = setTimeout(() => abortController.abort(), SEARCH_HARD_TIMEOUT_MS)
+
   // --- Valkey cache: return instantly on a repeat search (~1ms vs 1-4s) ---
   const cached = await getCachedSearch(query, timeRange)
   if (cached) {
+    clearTimeout(hardTimeout)
     return { ...cached, fromCache: true }
   }
 
   const started = Date.now()
 
   try {
+    const searxStarted = Date.now()
     const payload = await fetchSearxSearch({
       query,
       timeRange,
       baseUrl: searxUrl,
       clientIp,
+      signal: abortController.signal,
     })
 
+    const searxMs = Date.now() - searxStarted
     const response = buildSearchResponse(payload, query, Math.max(1, Date.now() - started))
     const countBeforeGuard = response.results.length
 
@@ -85,11 +95,34 @@ export default defineEventHandler(async (event) => {
       console.log(`[SemanticFilter] Blocked ${blocked.length} results as distracting/adult`)
     }
 
+    clearTimeout(hardTimeout)
+
+    // Expose full server-side timing breakdown in the JSON response.
+    // Check this in DevTools → Network → /api/search → Response to see
+    // exactly which layer is slow (searx, ai, semantic, cache, or total).
+    response.serverTimings = {
+      cache: 0,
+      searx: searxMs,
+      ai: aiMs,
+      semantic: response.timings.semantic,
+      total: Date.now() - started,
+    }
+
     // Populate Valkey cache so the next identical query is instant
     await setCachedSearch(query, timeRange, response)
 
     return response
   } catch (error) {
+    clearTimeout(hardTimeout)
+
+    if (abortController.signal.aborted) {
+      throw createError({
+        statusCode: 504,
+        statusMessage: 'Search timeout',
+        data: { code: 'SEARCH_TIMEOUT', message: 'Search took too long and was cancelled.' },
+      })
+    }
+
     const message =
       error instanceof Error ? error.message : 'The search backend is unavailable.'
 

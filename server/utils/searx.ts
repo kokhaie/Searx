@@ -38,9 +38,16 @@ async function requestJson(
   url: string,
   timeoutMs: number,
   headers: Record<string, string> = UPSTREAM_HEADERS,
+  signal?: AbortSignal,
 ): Promise<unknown> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
+
+  // Abort if either the internal timeout fires or the external signal aborts
+  const abort = () => controller.abort()
+  if (signal) {
+    signal.addEventListener('abort', abort, { once: true })
+  }
 
   try {
     const response = await fetch(url, {
@@ -62,12 +69,18 @@ async function requestJson(
       throw new Error('Search backend did not return JSON. Is the JSON format enabled?')
     }
   } catch (error) {
+    if (signal) {
+      signal.removeEventListener('abort', abort)
+    }
     if (controller.signal.aborted) {
       throw new Error(`Search backend timed out after ${timeoutMs}ms`)
     }
     throw error
   } finally {
     clearTimeout(timer)
+    if (signal) {
+      signal.removeEventListener('abort', abort)
+    }
   }
 }
 
