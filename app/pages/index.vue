@@ -47,8 +47,8 @@ const query = ref(initialQuery)
 const timeRange = ref<TimeRange>(initialRange)
 const submittedQuery = ref('')
 const maxResults = ref<ResultsLimit>(
-  initialMaxResults && RESULTS_LIMITS.includes(Number(initialMaxResults))
-    ? Number(initialMaxResults)
+  (RESULTS_LIMITS as readonly number[]).includes(Number(initialMaxResults))
+    ? (Number(initialMaxResults) as ResultsLimit)
     : DEFAULT_RESULTS_LIMIT,
 )
 

@@ -93,7 +93,7 @@ export async function fetchSearxSearch(options: FetchSearchOptions): Promise<unk
 
   return requestJson(
     `${base}/search?${params.toString()}`,
-    options.timeoutMs ?? 9000,
+    options.timeoutMs ?? 4000,
     upstreamHeaders(options.clientIp),
   )
 }

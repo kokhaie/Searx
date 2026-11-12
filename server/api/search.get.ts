@@ -1,15 +1,18 @@
 import { createError, defineEventHandler, getQuery } from 'h3'
-import type { TimeRange } from '../../shared/types/search'
+import type { SearchResultItem, TimeRange } from '../../shared/types/search'
 import { buildSearchResponse } from '../../shared/utils/search'
 import { fetchSearxSearch } from '../utils/searx'
-import {
-  initBlocklists,
-  filterResults,
-} from '../utils/contentGuard'
+import { filterResults } from '../utils/contentGuard'
 import { classifyResultNsfw } from '../utils/nsfwClassifier'
 import { filterSearchResults } from '../utils/semanticFilter'
+import { getCachedSearch, setCachedSearch } from '../utils/searchCache'
 const TIME_RANGES = new Set<TimeRange>(['', 'day', 'week', 'month', 'year'])
 const MAX_RESULTS = 5
+// Only run the expensive AI safety filters on the top N results after
+// blocklist filtering. Results beyond this are still deduped/cleaned but
+// never reach the NSFW or semantic classifiers, saving latency on queries
+// that return many raw results.
+const AI_FILTER_TOP_N = 10
 
 function parseTimeRange(value: unknown): TimeRange {
   const range = String(value ?? '').toLowerCase() as TimeRange
@@ -33,18 +36,23 @@ export default defineEventHandler(async (event) => {
     })
   }
 
+  const timeRange = parseTimeRange(params.time_range)
+
+  // --- Valkey cache: return instantly on a repeat search (~1ms vs 1-4s) ---
+  const cached = await getCachedSearch(query, timeRange)
+  if (cached) {
+    return { ...cached, fromCache: true }
+  }
+
   const started = Date.now()
 
   try {
     const payload = await fetchSearxSearch({
       query,
-      timeRange: parseTimeRange(params.time_range),
+      timeRange,
       baseUrl: searxUrl,
       clientIp,
     })
-
-    // --- Social media guard: ensure blocklist is loaded ---
-    await initBlocklists()
 
     const response = buildSearchResponse(payload, query, Math.max(1, Date.now() - started))
     const countBeforeGuard = response.results.length
@@ -54,13 +62,16 @@ export default defineEventHandler(async (event) => {
     const cleanResults = filterResults(response.results)
     response.filteredCount += response.results.length - cleanResults.length
 
+    // Only run the expensive AI classifiers on the top N blocklist-clean results.
+    const aiCandidates = cleanResults.slice(0, AI_FILTER_TOP_N)
+
     // Step 2: Block NSFW/adult content via AI embeddings classifier
     // Runs BEFORE result limit slicing so NSFW results never reach the browser
     const aiStarted = Date.now()
-    const nsfwFiltered = await filterNsfwResults(cleanResults)
+    const nsfwFiltered = await filterNsfwResults(aiCandidates)
     const aiMs = Date.now() - aiStarted
 
-    response.filteredCount += cleanResults.length - nsfwFiltered.length
+    response.filteredCount += aiCandidates.length - nsfwFiltered.length
 
     // Step 3: Semantic safety filter via Python microservice (thongs, bikinis, lingerie, etc.)
     const semanticStarted = Date.now()
@@ -73,6 +84,9 @@ export default defineEventHandler(async (event) => {
     if (blocked.length > 0) {
       console.log(`[SemanticFilter] Blocked ${blocked.length} results as distracting/adult`)
     }
+
+    // Populate Valkey cache so the next identical query is instant
+    await setCachedSearch(query, timeRange, response)
 
     return response
   } catch (error) {
@@ -96,7 +110,7 @@ export default defineEventHandler(async (event) => {
  * "sexual or revealing adult content" above the threshold.
  * Fails open (returns original results) if the classifier fails to load.
  */
-async function filterNsfwResults(results: Array<{ title: string; url: string; snippet?: string }>) {
+async function filterNsfwResults(results: SearchResultItem[]): Promise<SearchResultItem[]> {
   if (results.length === 0) return results
 
   try {

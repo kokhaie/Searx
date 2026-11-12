@@ -2,13 +2,9 @@
 // Calls the separate Python FastAPI microservice for semantic safety filtering.
 // Fail-open: if the AI service is down, we allow everything and log the error.
 
-const AI_FILTER_URL = process.env.AI_FILTER_URL || "http://localhost:8000"
+import type { SearchResultItem } from '../../shared/types/search'
 
-export interface SearchResultItem {
-  title: string
-  url: string
-  snippet?: string
-}
+const AI_FILTER_URL = process.env.AI_FILTER_URL || "http://localhost:8000"
 
 export interface BlockedItem {
   id: string

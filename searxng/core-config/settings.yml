@@ -1,4 +1,4 @@
-use_default_settings: true
+use_default_settings: false
 search:
   safe_search: 2
   autocomplete: "google"
@@ -15,3 +15,14 @@ server:
   limiter: false
   public_instance: false
   cors_enabled: false
+
+engines:
+  - name: DuckDuckGo
+    engine: duckduckgo
+    shortcut: ddg
+  - name: Bing
+    engine: bing
+    shortcut: bing
+  - name: Google
+    engine: google
+    shortcut: g

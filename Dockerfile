@@ -16,6 +16,16 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm --ignore-scripts=false in
 FROM base AS build
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+# Bake CDN blocklists into blocked-domains.txt at image build time so the
+# runtime container never needs to fetch them from the network.
+RUN { \
+    echo ""; \
+    echo "# --- CDN social blocklist (baked at build time) ---"; \
+    curl -fsSL "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/social.txt" || true; \
+    echo ""; \
+    echo "# --- CDN NSFW blocklist (baked at build time) ---"; \
+    curl -fsSL "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/nsfw.txt" || true; \
+  } >> server/blocked-domains.txt
 # Nuxt/Nitro bakes public runtime config defaults at build time, but NUXT_*
 # env vars still override them at runtime in the node-server preset.
 RUN pnpm build

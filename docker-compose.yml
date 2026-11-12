@@ -80,6 +80,8 @@ services:
       NUXT_SEARX_URL: http://core:8080
       # AI filter microservice (Python FastAPI)
       AI_FILTER_URL: http://ai-filter:8000
+      # Valkey search-response cache (5 min TTL)
+      VALKEY_URL: valkey://valkey:6379
       HOST: 0.0.0.0
       PORT: 3000
       NODE_ENV: production

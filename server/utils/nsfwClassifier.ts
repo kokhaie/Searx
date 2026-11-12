@@ -6,6 +6,7 @@
 // ------------------------------------------
 
 import { pipeline } from '@xenova/transformers'
+import type { FeatureExtractionPipeline } from '@xenova/transformers'
 
 // ============================================================
 // CONFIG
@@ -42,8 +43,8 @@ type SafeLabel = (typeof SAFE_LABELS)[number]
 // ============================================================
 // MODEL LOADING (cached in server memory)
 // ============================================================
-let extractor: ReturnType<typeof pipeline> | null = null
-let extractorPromise: Promise<ReturnType<typeof pipeline>> | null = null
+let extractor: FeatureExtractionPipeline | null = null
+let extractorPromise: Promise<FeatureExtractionPipeline> | null = null
 
 let unsafeEmbeddings: number[][] | null = null
 let safeEmbeddings: number[][] | null = null
@@ -52,7 +53,7 @@ let safeEmbeddings: number[][] | null = null
 // without re-running the model
 const nsfwUrlCache = new Set<string>()
 
-async function loadExtractor() {
+async function loadExtractor(): Promise<FeatureExtractionPipeline> {
   if (extractor) return extractor
   if (extractorPromise) return extractorPromise
 
@@ -109,9 +110,11 @@ function cosineSimilarity(a: number[], b: number[]): number {
   let normA = 0
   let normB = 0
   for (let i = 0; i < a.length; i++) {
-    dot += a[i] * b[i]
-    normA += a[i] * a[i]
-    normB += b[i] * b[i]
+    const ai = a[i]!
+    const bi = b[i]!
+    dot += ai * bi
+    normA += ai * ai
+    normB += bi * bi
   }
   normA = Math.sqrt(normA)
   normB = Math.sqrt(normB)

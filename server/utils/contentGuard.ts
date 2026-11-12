@@ -1,25 +1,17 @@
 // server/utils/contentGuard.ts
 // ------------------------------------------
-// Domain blocklist from three separate sources:
-//  1. hagezi social blocklist (CDN)
-//  2. hagezi NSFW blocklist (CDN)
-//  3. local server/blocked-domains.txt
+// Domain blocklist loaded from a single local file:
+//  - local server/blocked-domains.txt (CDN social + NSFW lists baked in at Docker build time)
 // All subdomains are blocked automatically (e.g. m.facebook.com blocked by facebook.com).
 // ------------------------------------------
 
 import fs from 'node:fs'
 import path from 'node:path'
 
-// ============================================================
-// CONFIG: CDN blocklists + local domains file
-// ============================================================
-export const SOCIAL_BLOCKLIST_URL =
-  'https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/social.txt'
-
-export const NSFW_BLOCKLIST_URL =
-  'https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/nsfw.txt'
-
-// Local domains file, resolved from several candidate paths
+// Local domains file. CDN blocklists are baked into this file at Docker
+// build time (see Dockerfile), so the runtime container never fetches from
+// the network.
+// Resolved from several candidate paths
 // (dev cwd, Nuxt .output runtime in Docker, current dir fallback)
 function findBlockedDomainsFile(): string | null {
   const candidates = [
@@ -70,20 +62,8 @@ function parseDomainLine(line: string): string | null {
   return domainPart.toLowerCase().replace(/^www\./, '')
 }
 
-async function fetchAndParse(url: string): Promise<string[]> {
-  const res = await fetch(url, { headers: { 'Cache-Control': 'max-age: 86400' } })
-  if (!res.ok) throw new Error(`HTTP ${res.status}`)
-  const text = await res.text()
-  const found: string[] = []
-  for (const line of text.split('\n')) {
-    const domain = parseDomainLine(line)
-    if (domain) found.push(domain)
-  }
-  return found
-}
-
 // ============================================================
-// INIT: load all three blocklists
+// INIT: load blocklists from the baked-in local file only
 // ============================================================
 export async function initBlocklists(): Promise<void> {
   if (isInitialized && blockedDomains.size > 0) return
@@ -92,31 +72,11 @@ export async function initBlocklists(): Promise<void> {
   initPromise = (async () => {
     let totalLoaded = 0
 
-    // Source 1: CDN social blocklist
-    try {
-      const social = await fetchAndParse(SOCIAL_BLOCKLIST_URL)
-      for (const d of social) blockedDomains.add(d)
-      totalLoaded += social.length
-      console.log(`[Guard] Loaded ${social.length} social domains from CDN`)
-    } catch (e) {
-      console.warn('[Guard] Error fetching social blocklist:', e)
-    }
-
-    // Source 2: CDN NSFW blocklist
-    try {
-      const nsfw = await fetchAndParse(NSFW_BLOCKLIST_URL)
-      for (const d of nsfw) blockedDomains.add(d)
-      totalLoaded += nsfw.length
-      console.log(`[Guard] Loaded ${nsfw.length} NSFW domains from CDN`)
-    } catch (e) {
-      console.warn('[Guard] Error fetching NSFW blocklist:', e)
-    }
-
-    // Source 3: local blocked-domains.txt
+    // Single source: local blocked-domains.txt (CDN lists baked in at build time)
     try {
       const domainsFile = findBlockedDomainsFile()
       if (!domainsFile) {
-        console.warn('[Guard] blocked-domains.txt not found in any expected location; local list skipped')
+        console.warn('[Guard] blocked-domains.txt not found in any expected location; blocklist disabled')
       } else {
         const text = fs.readFileSync(domainsFile, 'utf-8')
         const local = text.split('\n').map(parseDomainLine).filter((d): d is string => !!d)
