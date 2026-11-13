@@ -295,6 +295,7 @@ function setRange(value: TimeRange) {
   timeRange.value = value
 
   if (submittedQuery.value) {
+    results.value = [] // clear immediately for instant loading skeleton feedback
     void runSearch(submittedQuery.value)
   } else {
     void syncUrl(query.value)
@@ -307,6 +308,7 @@ function setMaxResults(limit: ResultsLimit) {
   maxResults.value = limit
 
   if (submittedQuery.value) {
+    results.value = [] // clear immediately for instant loading skeleton feedback
     void runSearch(submittedQuery.value)
   } else {
     void syncUrl(query.value)
@@ -590,11 +592,11 @@ onBeforeUnmount(() => {
 <template>
   <main class="mx-auto w-full max-w-2xl px-4 py-10">
     <header
-      class="sticky top-0 z-30 -mx-4 bg-canvas/90 px-4 pb-3 pt-1 backdrop-blur-md"
+      class="sticky top-0 z-30 -mx-4 bg-canvas px-4 pb-3 pt-1 sm:bg-canvas/90 sm:backdrop-blur-md"
     >
       <form
         role="search"
-        class="flex items-center gap-1.5 border border-line bg-panel/90 px-3 py-2.5 backdrop-blur transition-colors duration-150 focus-within:border-faint sm:gap-2"
+        class="flex items-center gap-1.5 border border-line bg-panel px-3 py-2.5 sm:bg-panel/90 sm:backdrop-blur transition-colors duration-150 focus-within:border-faint sm:gap-2"
         @submit.prevent="submit"
       >
         <span class="shrink-0 select-none font-mono text-sm leading-none text-faint" aria-hidden="true">
@@ -637,7 +639,7 @@ onBeforeUnmount(() => {
             :aria-pressed="maxResults === limit"
             :aria-label="`Limit to ${limit} results${maxResults === limit ? ' (selected)' : ''}`"
             :class="[
-              'rounded-full px-2 py-1 leading-none transition-colors duration-100 sm:px-1.5 sm:py-0.5',
+              'rounded-full px-2 py-1 leading-none transition-colors duration-100 touch-manipulation sm:px-1.5 sm:py-0.5',
               maxResults === limit ? 'bg-elevated text-fg font-medium' : 'text-faint hover:text-muted',
             ]"
             @click="setMaxResults(limit)"
@@ -658,7 +660,7 @@ onBeforeUnmount(() => {
             :aria-pressed="timeRange === range.value"
             :aria-label="`Time range: ${range.label}${timeRange === range.value ? ' (selected)' : ''}`"
             :class="[
-              'rounded-full px-1.5 py-1 leading-none transition-colors duration-100 sm:px-1.5 sm:py-1',
+              'rounded-full px-1.5 py-1 leading-none transition-colors duration-100 touch-manipulation sm:px-1.5 sm:py-1',
               timeRange === range.value
                 ? 'bg-elevated text-fg font-medium'
                 : 'text-faint hover:text-muted',
