@@ -32,7 +32,7 @@ export default defineNuxtConfig({
       htmlAttrs: { lang: 'en' },
       title: 'Search',
       meta: [
-        { name: 'viewport', content: 'width=device-width, initial-scale=1' },
+        { name: 'viewport', content: 'width=device-width, initial-scale=1, viewport-fit=cover' },
         { name: 'color-scheme', content: 'dark light' },
         { name: 'theme-color', content: '#09090b' },
         {

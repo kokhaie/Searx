@@ -18,9 +18,9 @@ html.dark {
   --fg-strong: #fafafa; /* zinc-50 */
   --muted: #a1a1aa; /* zinc-400 */
   --faint: #71717a; /* zinc-500 */
-  --dim: #52525b; /* zinc-600 */
-  --active: rgb(24 24 27 / 0.4);
-  --active-border: #e4e4e7; /* zinc-200 */
+  --dim: #71717a; /* zinc-500 for WCAG AA compliance (>4.5:1 on zinc-950) */
+  --active: rgb(39 39 42 / 0.65); /* zinc-800 with crisp visibility */
+  --active-border: #a1a1aa; /* zinc-400 */
   --selection: #27272a;
 }
 
@@ -36,9 +36,9 @@ html.light {
   --fg-strong: #0c0a09; /* stone-950 */
   --muted: #57534e; /* stone-600 */
   --faint: #78716c; /* stone-500 */
-  --dim: #a8a29e; /* stone-400 */
-  --active: rgb(231 229 228 / 0.45);
-  --active-border: #44403c; /* stone-700 */
+  --dim: #78716c; /* stone-500 for WCAG AA compliance (>4.5:1 on stone-50) */
+  --active: rgb(231 229 228 / 0.75); /* stone-200 with clear visibility */
+  --active-border: #57534e; /* stone-600 */
   --selection: #e7e5e4;
 }
 

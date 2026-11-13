@@ -33,7 +33,12 @@ const displaySegments = computed<TextSegment[]>(() => {
     @mouseenter="emit('activate', index)"
   >
     <div class="flex min-w-0 items-baseline gap-2 font-mono text-xs tabular-nums">
-      <span class="shrink-0 text-dim">{{ padIndex(index + 1) }}</span>
+      <span
+        class="shrink-0 text-dim transition-colors group-hover:text-faint"
+        :title="`Press ${index + 1} to open`"
+      >
+        {{ padIndex(index + 1) }}
+      </span>
 
       <a
         :href="result.url"

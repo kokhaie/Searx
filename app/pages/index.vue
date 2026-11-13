@@ -406,9 +406,10 @@ function moveSuggestion(direction: number) {
 
 function pickSuggestion(value: string) {
   query.value = value
+  submittedQuery.value = value
+  suggestions.value = []
   suggestionsDismissed.value = true
   activeSuggestion.value = -1
-  inputEl.value?.blur()
   void runSearch(value)
 }
 
@@ -621,19 +622,23 @@ onBeforeUnmount(() => {
           @keydown="onInputKeydown"
         />
 
+        <!-- Hidden submit button for mobile & accessible screen readers -->
+        <button type="submit" class="sr-only" aria-label="Submit search">Search</button>
+
         <div
           role="group"
           aria-label="Results limit"
-          class="flex shrink-0 items-center rounded-full border border-line/80 bg-canvas/50 p-0.5 font-mono text-[9px] uppercase tracking-wider sm:text-[10px] mx-2"
+          class="flex shrink-0 items-center rounded-full border border-line/80 bg-canvas/50 p-0.5 font-mono text-[9px] uppercase tracking-wider sm:text-[10px] mx-1 sm:mx-2"
         >
           <button
             v-for="limit in RESULTS_LIMITS"
             :key="limit"
             type="button"
             :aria-pressed="maxResults === limit"
+            :aria-label="`Limit to ${limit} results${maxResults === limit ? ' (selected)' : ''}`"
             :class="[
-              'rounded-full px-1.5 py-0.5 leading-none transition-colors duration-100',
-              maxResults === limit ? 'bg-elevated text-fg' : 'text-faint hover:text-muted',
+              'rounded-full px-2 py-1 leading-none transition-colors duration-100 sm:px-1.5 sm:py-0.5',
+              maxResults === limit ? 'bg-elevated text-fg font-medium' : 'text-faint hover:text-muted',
             ]"
             @click="setMaxResults(limit)"
           >
@@ -651,10 +656,11 @@ onBeforeUnmount(() => {
             :key="range.label"
             type="button"
             :aria-pressed="timeRange === range.value"
+            :aria-label="`Time range: ${range.label}${timeRange === range.value ? ' (selected)' : ''}`"
             :class="[
-              'rounded-full px-1 py-0.5 leading-none transition-colors duration-100 sm:px-1.5 sm:py-1',
+              'rounded-full px-1.5 py-1 leading-none transition-colors duration-100 sm:px-1.5 sm:py-1',
               timeRange === range.value
-                ? 'bg-elevated text-fg'
+                ? 'bg-elevated text-fg font-medium'
                 : 'text-faint hover:text-muted',
             ]"
             @click="setRange(range.value)"
@@ -713,10 +719,16 @@ onBeforeUnmount(() => {
         class="border border-line bg-panel/40 px-4 py-4 font-mono text-xs"
       >
         <p class="uppercase tracking-wider text-fg">Search backend unreachable</p>
-        <p class="mt-2 leading-relaxed text-faint">{{ error }}</p>
+        <p class="mt-2 text-muted leading-relaxed">
+          Unable to complete the search request. Please check your connection and try again.
+        </p>
+        <details class="mt-2 text-faint">
+          <summary class="cursor-pointer text-[11px] hover:text-fg select-none">Technical details</summary>
+          <p class="mt-1 font-mono text-[11px] leading-relaxed text-dim">{{ error }}</p>
+        </details>
         <button
           type="button"
-          class="mt-3 border border-line px-2 py-1 text-[10px] uppercase tracking-wider text-muted transition-colors hover:text-fg"
+          class="mt-3 border border-line px-2.5 py-1 text-[10px] uppercase tracking-wider text-muted transition-colors hover:text-fg"
           @click="runSearch()"
         >
           Retry
@@ -727,8 +739,20 @@ onBeforeUnmount(() => {
         <p class="font-mono text-[11px] uppercase tracking-wider text-faint">Ready</p>
         <p class="mt-2 text-sm text-muted">
           Type a query and press
-          <kbd class="border border-line px-1.5 py-0.5 font-mono text-[10px] text-faint">↵</kbd>
+          <kbd class="rounded border border-line px-1.5 py-0.5 font-mono text-[10px] text-faint">↵</kbd>
         </p>
+        <div class="mt-6 flex flex-wrap items-center justify-center gap-2 font-mono text-xs text-faint">
+          <span class="text-[10px] uppercase tracking-wider text-dim">Try:</span>
+          <button
+            v-for="sample in ['Nuxt 4', 'TypeScript', 'Tailwind CSS', 'SearXNG']"
+            :key="sample"
+            type="button"
+            class="rounded border border-line bg-panel/60 px-2 py-0.5 text-xs text-muted transition-colors hover:border-faint hover:text-fg"
+            @click="query = sample; void runSearch(sample)"
+          >
+            {{ sample }}
+          </button>
+        </div>
       </div>
 
       <div v-else-if="hasSearched && !results.length" class="py-16 text-center">
@@ -736,6 +760,9 @@ onBeforeUnmount(() => {
         <p class="mt-2 font-mono text-xs leading-relaxed text-dim">
           Nothing matched "{{ submittedQuery }}".<br>
           Try a broader query or set the filter to ALL.
+        </p>
+        <p v-if="filteredCount > 0" class="mt-3 font-mono text-[11px] text-faint">
+          {{ filteredCount }} result{{ filteredCount === 1 ? '' : 's' }} were filtered by safety rules.
         </p>
       </div>
 
@@ -753,10 +780,19 @@ onBeforeUnmount(() => {
     </section>
 
     <footer
-      class="mt-10 flex flex-wrap items-center justify-between gap-2 border-t border-line-soft pt-4 font-mono text-[10px] uppercase tracking-wider text-dim"
+      class="mt-10 flex flex-wrap items-center justify-between gap-2 border-t border-line-soft pt-4 font-mono text-[10px] uppercase tracking-wider text-dim pb-[max(1rem,env(safe-area-inset-bottom))]"
     >
-      <p>J/K navigate · ↵ open · 1–9 jump · <span class="hidden sm:inline">{{ modKey }}↵ new tab · </span>T theme · / focus</p>
-      <p class="hidden sm:block">{{ modKey }}K focus search</p>
+      <p class="flex flex-wrap items-center gap-1.5">
+        <kbd class="rounded border border-line px-1 py-0.5 text-[9px] text-faint">J</kbd>/<kbd class="rounded border border-line px-1 py-0.5 text-[9px] text-faint">K</kbd> navigate ·
+        <kbd class="rounded border border-line px-1 py-0.5 text-[9px] text-faint">↵</kbd> open ·
+        <kbd class="rounded border border-line px-1 py-0.5 text-[9px] text-faint">1–9</kbd> jump ·
+        <span class="hidden sm:inline"><kbd class="rounded border border-line px-1 py-0.5 text-[9px] text-faint">{{ modKey }}</kbd><kbd class="rounded border border-line px-1 py-0.5 text-[9px] text-faint">↵</kbd> new tab · </span>
+        <kbd class="rounded border border-line px-1 py-0.5 text-[9px] text-faint">T</kbd> theme ·
+        <kbd class="rounded border border-line px-1 py-0.5 text-[9px] text-faint">/</kbd> focus
+      </p>
+      <p class="hidden sm:block">
+        <kbd class="rounded border border-line px-1 py-0.5 text-[9px] text-faint">{{ modKey }}</kbd><kbd class="rounded border border-line px-1 py-0.5 text-[9px] text-faint">K</kbd> focus search
+      </p>
     </footer>
   </main>
 </template>

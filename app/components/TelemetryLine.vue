@@ -36,12 +36,13 @@ defineEmits<{
     <div class="flex shrink-0 items-center gap-2 tabular-nums">
       <button
         type="button"
-        title="Toggle theme (T)"
-        class="text-faint transition-colors duration-100 hover:text-fg"
+        title="Toggle color theme (T)"
+        aria-label="Toggle color theme"
+        class="text-faint transition-colors duration-100 hover:text-fg font-medium"
         @click="$emit('toggleTheme')"
       >
-        <span class="theme-label-dark">[DARK]</span>
-        <span class="theme-label-light">[LIGHT]</span>
+        <span class="theme-label-dark">[→ LIGHT]</span>
+        <span class="theme-label-light">[→ DARK]</span>
       </button>
 
       <span class="hidden text-dim sm:inline">·</span>
