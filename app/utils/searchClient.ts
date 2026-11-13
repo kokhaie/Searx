@@ -13,12 +13,14 @@ export interface SearchSignalOptions {
 export async function search(
   query: string,
   timeRange: TimeRange | undefined,
+  maxResults?: number,
   options?: SearchSignalOptions,
 ): Promise<SearchApiResponse> {
   return await $fetch<SearchApiResponse>('/api/search', {
     query: {
       q: query,
       ...(timeRange ? { time_range: timeRange } : {}),
+      ...(maxResults ? { max_results: maxResults } : {}),
     },
     signal: options?.signal,
   })

@@ -21,11 +21,13 @@ COPY . .
 RUN { \
     echo ""; \
     echo "# --- CDN social blocklist (baked at build time) ---"; \
-    curl -fsSL "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/social.txt" || true; \
+    curl -fsSL "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/social.txt"; \
     echo ""; \
     echo "# --- CDN NSFW blocklist (baked at build time) ---"; \
-    curl -fsSL "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/nsfw.txt" || true; \
-  } >> server/blocked-domains.txt
+    curl -fsSL "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/nsfw.txt"; \
+  } >> server/blocked-domains.txt \
+  && test -s server/blocked-domains.txt \
+  && echo "Blocklist baked: $(wc -l < server/blocked-domains.txt) lines"
 # Nuxt/Nitro bakes public runtime config defaults at build time, but NUXT_*
 # env vars still override them at runtime in the node-server preset.
 RUN pnpm build

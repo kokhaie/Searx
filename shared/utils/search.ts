@@ -150,7 +150,6 @@ export function buildSearchResponse(
   payload: unknown,
   query: string,
   searxMs: number,
-  aiMs: number = 0,
 ): SearchApiResponse {
   const raw = (payload && typeof payload === 'object' ? payload : {}) as RawRecord
   const rawResults = asArray(raw.results)
@@ -174,6 +173,6 @@ export function buildSearchResponse(
     suggestions: normalizeSuggestions(raw.suggestions),
     rawCount: rawResults.length,
     filteredCount: rawResults.length - results.length,
-    timings: { searx: searxMs, ai: aiMs, semantic: 0 },
+    timings: { searx: searxMs, ai: 0, semantic: 0 },
   }
 }

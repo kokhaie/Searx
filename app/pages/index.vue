@@ -59,7 +59,17 @@ const results = ref<SearchResultItem[]>([])
 const segments = ref<TextSegment[][]>([])
 const suggestions = ref<string[]>([])
 const history = ref<string[]>([])
+// Cap the in-browser suggest cache so it doesn't grow unbounded during a long session.
+const SUGGEST_CACHE_MAX = 100
 const suggestCache = new Map<string, string[]>()
+function setSuggestCache(key: string, value: string[]) {
+  if (suggestCache.size >= SUGGEST_CACHE_MAX) {
+    // Evict the oldest entry (first inserted key)
+    const oldest = suggestCache.keys().next().value
+    if (oldest !== undefined) suggestCache.delete(oldest)
+  }
+  suggestCache.set(key, value)
+}
 
 const activeIndex = ref(-1)
 const activeSuggestion = ref(-1)
@@ -88,6 +98,12 @@ const suggestionsOpen = computed(
 const rangeLabel = computed(
   () => TIME_RANGES.find(item => item.value === timeRange.value)?.label ?? 'ALL',
 )
+
+/** Platform-aware modifier key label. */
+const modKey = computed(() => {
+  if (!import.meta.client) return '⌘'
+  return /mac|iphone|ipad|ipod/i.test(navigator.platform || '') ? '⌘' : 'Ctrl+'
+})
 
 useHead(() => ({
   title: submittedQuery.value ? `${submittedQuery.value} · Search` : 'Search',
@@ -223,7 +239,7 @@ async function runSearch(rawQuery = query.value) {
   void syncUrl(value)
 
   try {
-    const response = await search(value, timeRange.value || undefined, {
+    const response = await search(value, timeRange.value || undefined, maxResults.value, {
       signal: controller.signal,
     })
 
@@ -235,7 +251,7 @@ async function runSearch(rawQuery = query.value) {
 
     segments.value = nextSegments
 
-    results.value = response.results.slice(0, maxResults.value)
+    results.value = response.results
     filteredCount.value = response.filteredCount
     searxMs.value = response.timings.searx
     aiMs.value = response.timings.ai || 0
@@ -368,7 +384,7 @@ async function loadSuggestions(value: string) {
 
     if (controller.signal.aborted) return
 
-    suggestCache.set(value.toLowerCase(), nextSuggestions)
+    setSuggestCache(value.toLowerCase(), nextSuggestions)
 
     if (query.value.trim() !== value) return
 
@@ -682,6 +698,14 @@ onBeforeUnmount(() => {
       aria-live="polite"
       :aria-busy="isLoading ? 'true' : 'false'"
     >
+      <!-- Screen-reader announcement when results arrive -->
+      <span
+        v-if="!isLoading && hasSearched"
+        class="sr-only"
+        role="status"
+      >
+        {{ results.length ? `${results.length} results for ${submittedQuery}` : `No results for ${submittedQuery}` }}
+      </span>
       <ResultSkeleton v-if="isLoading" />
 
       <div
@@ -707,19 +731,11 @@ onBeforeUnmount(() => {
         </p>
       </div>
 
-      <div v-else-if="!results.length && hasSearched" class="py-16 text-center">
+      <div v-else-if="hasSearched && !results.length" class="py-16 text-center">
         <p class="font-mono text-[11px] uppercase tracking-wider text-faint">No results</p>
         <p class="mt-2 font-mono text-xs leading-relaxed text-dim">
-          Nothing matched “{{ submittedQuery }}”.<br >
+          Nothing matched "{{ submittedQuery }}".<br>
           Try a broader query or set the filter to ALL.
-        </p>
-      </div>
-
-      <div v-else-if="!results.length" class="py-16 text-center">
-        <p class="font-mono text-[11px] uppercase tracking-wider text-faint">No results</p>
-        <p class="mt-2 font-mono text-xs leading-relaxed text-dim">
-          Nothing matched “{{ submittedQuery }}”.<br >
-          Try a different query or change the filters.
         </p>
       </div>
 
@@ -739,8 +755,8 @@ onBeforeUnmount(() => {
     <footer
       class="mt-10 flex flex-wrap items-center justify-between gap-2 border-t border-line-soft pt-4 font-mono text-[10px] uppercase tracking-wider text-dim"
     >
-      <p>J/K navigate · ↵ open · 1–9 jump · ⌘↵ new tab</p>
-      <p>T theme · / focus</p>
+      <p>J/K navigate · ↵ open · 1–9 jump · <span class="hidden sm:inline">{{ modKey }}↵ new tab · </span>T theme · / focus</p>
+      <p class="hidden sm:block">{{ modKey }}K focus search</p>
     </footer>
   </main>
 </template>

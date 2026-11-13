@@ -19,6 +19,14 @@ export interface SearchApiResponse {
     ai: number
     semantic: number
   }
+  fromCache?: boolean
+  serverTimings?: {
+    cache: number
+    searx: number
+    ai: number
+    semantic: number
+    total: number
+  }
 }
 
 export interface SuggestApiResponse {

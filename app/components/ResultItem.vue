@@ -39,7 +39,7 @@ const displaySegments = computed<TextSegment[]>(() => {
         :href="result.url"
         :title="result.url"
         tabindex="-1"
-        rel="noreferrer"
+        rel="noopener noreferrer"
         class="min-w-0 truncate text-faint transition-colors hover:text-muted"
       >
         {{ breadcrumb }}
@@ -53,7 +53,7 @@ const displaySegments = computed<TextSegment[]>(() => {
     <h2 class="mt-1.5 text-base font-medium leading-snug">
       <a
         :href="result.url"
-        rel="noreferrer"
+        rel="noopener noreferrer"
         class="text-fg decoration-1 underline-offset-2 visited:text-faint hover:underline"
       >
         {{ result.title }}

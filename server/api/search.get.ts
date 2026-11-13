@@ -38,6 +38,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const timeRange = parseTimeRange(params.time_range)
+  const maxResults = Math.min(Math.max(1, Number(params.max_results ?? MAX_RESULTS)), 10)
 
   // Hard timeout: if the whole search pipeline takes longer than this,
   // abort immediately and free the connection instead of holding it open.
@@ -65,6 +66,9 @@ export default defineEventHandler(async (event) => {
 
     const searxMs = Date.now() - searxStarted
     const response = buildSearchResponse(payload, query, Math.max(1, Date.now() - started))
+    // Reset filteredCount: buildSearchResponse includes deduplication noise.
+    // We count only intentional blocks (domain guard + AI filters) below.
+    response.filteredCount = 0
     const countBeforeGuard = response.results.length
 
     // Step 1: Block all blocked domains (social, lingerie, dating, etc. from blocked-domains.txt)
@@ -86,7 +90,7 @@ export default defineEventHandler(async (event) => {
     // Step 3: Semantic safety filter via Python microservice (thongs, bikinis, lingerie, etc.)
     const semanticStarted = Date.now()
     const { allowed, blocked } = await filterSearchResults(nsfwFiltered, 0.50)
-    response.results = allowed.slice(0, MAX_RESULTS)
+    response.results = allowed.slice(0, maxResults)
     response.filteredCount += nsfwFiltered.length - allowed.length
     response.timings.ai = aiMs
     response.timings.semantic = Date.now() - semanticStarted

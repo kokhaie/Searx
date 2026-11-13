@@ -51,7 +51,7 @@ async function requestJson(
 
   try {
     const response = await fetch(url, {
-      headers: UPSTREAM_HEADERS,
+      headers,
       signal: controller.signal,
       redirect: 'follow',
       cache: 'no-store',
@@ -92,6 +92,8 @@ export interface FetchSearchOptions {
   baseUrl?: string
   /** Real client IP, forwarded internally as X-Forwarded-For. */
   clientIp?: string
+  /** External abort signal — aborts the upstream fetch when fired. */
+  signal?: AbortSignal
 }
 
 export async function fetchSearxSearch(options: FetchSearchOptions): Promise<unknown> {
@@ -108,6 +110,7 @@ export async function fetchSearxSearch(options: FetchSearchOptions): Promise<unk
     `${base}/search?${params.toString()}`,
     options.timeoutMs ?? 4000,
     upstreamHeaders(options.clientIp),
+    options.signal,
   )
 }
 

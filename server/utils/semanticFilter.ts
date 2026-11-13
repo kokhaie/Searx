@@ -4,7 +4,7 @@
 
 import type { SearchResultItem } from '../../shared/types/search'
 
-const AI_FILTER_URL = process.env.AI_FILTER_URL || "http://localhost:8000"
+const AI_FILTER_URL = process.env.AI_FILTER_URL || 'http://localhost:8000'
 
 export interface BlockedItem {
   id: string
@@ -25,19 +25,20 @@ async function callFilterService(
   threshold: number
 ): Promise<FilterResponse> {
   const res = await fetch(`${AI_FILTER_URL}/filter`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ items, threshold }),
+    signal: AbortSignal.timeout(3000),
   })
 
   if (!res.ok) {
     // Read the body so FastAPI's 422 validation detail is visible in logs
-    let detail = ""
+    let detail = ''
     try {
       const body = await res.json()
       detail = JSON.stringify(body)
     } catch {
-      detail = await res.text().catch(() => "")
+      detail = await res.text().catch(() => '')
     }
     throw new Error(`AI filter service returned ${res.status}: ${detail}`)
   }
@@ -61,8 +62,8 @@ export async function filterSearchResults(
 
   const items = results.map((r) => ({
     id: r.url,
-    title: r.title || "",
-    snippet: r.snippet || "",
+    title: r.title || '',
+    snippet: r.snippet || '',
   }))
 
   try {
@@ -76,7 +77,7 @@ export async function filterSearchResults(
 
     return { allowed, blocked: blockedResults }
   } catch (err) {
-    console.error("[SemanticFilter] AI service unavailable, failing open:", err)
+    console.error('[SemanticFilter] AI service unavailable, failing open:', err)
     return { allowed: results, blocked: [] }
   }
 }

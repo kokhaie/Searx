@@ -11,8 +11,10 @@ import Redis from 'ioredis'
 
 let client: Redis | null = null
 let connectPromise: Promise<void> | null = null
+let clientFailed = false
 
 function getClient(): Redis | null {
+  if (clientFailed) return null
   if (client) return client
   if (connectPromise) return null // still connecting, skip for now
 
@@ -25,7 +27,10 @@ function getClient(): Redis | null {
     retryStrategy: () => null, // don't retry; cache failures are non-fatal
   })
 
-  connectPromise = client.connect().catch(() => {})
+  connectPromise = client.connect().catch(() => {
+    clientFailed = true
+    client = null
+  })
   connectPromise.finally(() => {
     connectPromise = null
   })
