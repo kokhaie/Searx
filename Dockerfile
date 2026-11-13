@@ -14,6 +14,7 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm --ignore-scripts=false install
 
 FROM base AS build
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && rm -rf /var/lib/apt/lists/*
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 # Bake CDN blocklists into blocked-domains.txt at image build time so the
@@ -21,10 +22,10 @@ COPY . .
 RUN { \
     echo ""; \
     echo "# --- CDN social blocklist (baked at build time) ---"; \
-    curl -fsSL "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/social.txt"; \
+    curl -fsSL --retry 3 --retry-connrefused "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/social.txt" || true; \
     echo ""; \
     echo "# --- CDN NSFW blocklist (baked at build time) ---"; \
-    curl -fsSL "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/nsfw.txt"; \
+    curl -fsSL --retry 3 --retry-connrefused "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/nsfw.txt" || true; \
   } >> server/blocked-domains.txt \
   && test -s server/blocked-domains.txt \
   && echo "Blocklist baked: $(wc -l < server/blocked-domains.txt) lines"
